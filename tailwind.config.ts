@@ -47,6 +47,16 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        "primary-soft": "hsl(var(--primary-soft))",
+        status: {
+          free: "hsl(var(--status-free))",
+          studying: "hsl(var(--status-studying))",
+          lunch: "hsl(var(--status-lunch))",
+          coffee: "hsl(var(--status-coffee))",
+          party: "hsl(var(--status-party))",
+          gym: "hsl(var(--status-gym))",
+          busy: "hsl(var(--status-busy))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
