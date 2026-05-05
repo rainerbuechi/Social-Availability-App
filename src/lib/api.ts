@@ -18,7 +18,39 @@ import {
   users as mockUsers,
 } from "./mockData";
 
-let _posts: AvailabilityPost[] = [...mockPosts];
+const STORAGE_KEY = "availability_posts";
+
+/**
+ * Save posts array to localStorage with error handling.
+ * Silently fails if storage is unavailable (e.g., private browsing).
+ */
+function _savePostsToStorage(): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(_posts));
+  } catch (error) {
+    console.warn("Failed to save posts to localStorage", error);
+  }
+}
+
+/**
+ * Initialize posts from localStorage, falling back to mockPosts if unavailable.
+ */
+function _initializePostsFromStorage(): AvailabilityPost[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+  } catch (error) {
+    console.warn("Failed to load posts from localStorage", error);
+  }
+  return [...mockPosts];
+}
+
+let _posts: AvailabilityPost[] = _initializePostsFromStorage();
 let _privacy: PrivacySettings = { ...defaultPrivacy };
 
 export async function getCurrentUser(): Promise<User> {
@@ -54,6 +86,7 @@ export async function createPost(
     createdAt: new Date().toISOString(),
   };
   _posts = [post, ..._posts];
+  _savePostsToStorage();
   return post;
 }
 

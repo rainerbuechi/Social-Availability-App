@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Down App
 
 TODO: Document your project here
