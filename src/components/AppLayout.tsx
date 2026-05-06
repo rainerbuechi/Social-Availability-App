@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Home, PlusCircle, Users, User } from "lucide-react";
+import { Home, PlusCircle, Users, User, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const tabs = [
   { to: "/feed", label: "Feed", icon: Home },
   { to: "/create", label: "Post", icon: PlusCircle },
+  { to: "/friends", label: "Friends", icon: UserPlus },
   { to: "/groups", label: "Groups", icon: Users },
   { to: "/profile", label: "Profile", icon: User },
 ];
@@ -17,7 +18,7 @@ export default function AppLayout() {
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-40 safe-bottom">
         <div className="mx-auto max-w-md border-t border-border bg-card/95 backdrop-blur">
-          <ul className="grid grid-cols-4">
+          <ul className="grid grid-cols-5">
             {tabs.map(({ to, label, icon: Icon }) => (
               <li key={to}>
                 <NavLink
