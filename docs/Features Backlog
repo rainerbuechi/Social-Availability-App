@@ -1,0 +1,37 @@
+## MVP features
+
+### 1. Create availability post
+Status: partly done
+Goal: user creates a post and sees it in feed
+Next:
+- add validation: end time must be after start time
+- require message OR location OR status
+- persist posts in localStorage
+
+### 2. Edit/delete own post
+Goal: user can remove or update their current status
+
+### 3. Groups
+Goal: user can create friend groups
+Next:
+- create group
+- add/remove mock members
+- select group when posting
+- Group Chat feature
+
+### 4. Privacy
+Goal: user controls visibility
+Next:
+- hidden / approximate / exact location
+- visible-to group
+- show privacy preview before posting
+
+### 5. Profile
+Goal: edit display name and username
+
+### 6. PWA setup
+Goal: app can be added to phone home screen
+Later:
+- manifest
+- icons
+- offline fallback
