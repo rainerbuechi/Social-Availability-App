@@ -31,6 +31,7 @@ const EMOJI_OPTIONS = ["💛", "📚", "💪", "🌎", "🎉", "☕", "🏠", "�
 export default function Groups() {
   const navigate = useNavigate();
   const [groups, setGroups] = useState<FriendGroup[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [friends, setFriends] = useState<User[]>([]);
   const [latestMessages, setLatestMessages] = useState<Record<string, ChatMessage>>({});
 
