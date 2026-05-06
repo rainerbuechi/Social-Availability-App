@@ -1,11 +1,11 @@
 /**
  * Data access layer.
- * Currently backed by in-memory mocks. When Supabase is added,
- * swap each function to a query against the appropriate table.
- * Component code only imports from here, never from mockData directly.
+ * Currently backed by in-memory mocks + localStorage.
+ * When Supabase is added, swap each function body.
  */
 import {
   AvailabilityPost,
+  ChatMessage,
   FriendGroup,
   PrivacySettings,
   User,
@@ -18,40 +18,37 @@ import {
   users as mockUsers,
 } from "./mockData";
 
-const STORAGE_KEY = "availability_posts";
+/* ── Storage helpers ─────────────────────────────── */
 
-/**
- * Save posts array to localStorage with error handling.
- * Silently fails if storage is unavailable (e.g., private browsing).
- */
-function _savePostsToStorage(): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(_posts));
-  } catch (error) {
-    console.warn("Failed to save posts to localStorage", error);
-  }
-}
+const POSTS_KEY = "availability_posts";
+const GROUPS_KEY = "friend_groups";
+const CHAT_KEY = "chat_messages";
 
-/**
- * Initialize posts from localStorage, falling back to mockPosts if unavailable.
- */
-function _initializePostsFromStorage(): AvailabilityPost[] {
+function loadJson<T>(key: string, fallback: T): T {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed as T;
     }
-  } catch (error) {
-    console.warn("Failed to load posts from localStorage", error);
-  }
-  return [...mockPosts];
+  } catch {}
+  return fallback;
 }
 
-let _posts: AvailabilityPost[] = _initializePostsFromStorage();
+function saveJson(key: string, data: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch {}
+}
+
+/* ── In-memory state ─────────────────────────────── */
+
+let _posts: AvailabilityPost[] = loadJson<AvailabilityPost[]>(POSTS_KEY, [...mockPosts]);
+let _groups: FriendGroup[] = loadJson<FriendGroup[]>(GROUPS_KEY, [...mockGroups]);
+let _chats: ChatMessage[] = loadJson<ChatMessage[]>(CHAT_KEY, []);
 let _privacy: PrivacySettings = { ...defaultPrivacy };
+
+/* ── Users ───────────────────────────────────────── */
 
 export async function getCurrentUser(): Promise<User> {
   return mockMe;
@@ -65,15 +62,72 @@ export async function getUser(id: string): Promise<User | undefined> {
   return mockUsers.find((u) => u.id === id);
 }
 
+/* ── Groups ──────────────────────────────────────── */
+
 export async function listGroups(): Promise<FriendGroup[]> {
-  return mockGroups;
+  return [..._groups];
 }
 
+export async function getGroup(id: string): Promise<FriendGroup | undefined> {
+  return _groups.find((g) => g.id === id);
+}
+
+export async function listGroupMembers(groupId: string): Promise<User[]> {
+  const g = _groups.find((gr) => gr.id === groupId);
+  if (!g) return [];
+  return mockUsers.filter((u) => g.memberIds.includes(u.id));
+}
+
+export async function createGroup(
+  input: Omit<FriendGroup, "id">,
+): Promise<FriendGroup> {
+  const group: FriendGroup = {
+    ...input,
+    id: `g_${Math.random().toString(36).slice(2, 9)}`,
+  };
+  _groups = [..._groups, group];
+  saveJson(GROUPS_KEY, _groups);
+  return group;
+}
+
+export async function updateGroup(
+  id: string,
+  input: Partial<Omit<FriendGroup, "id">>,
+): Promise<FriendGroup | undefined> {
+  const idx = _groups.findIndex((g) => g.id === id);
+  if (idx === -1) return undefined;
+  _groups[idx] = { ..._groups[idx], ...input };
+  saveJson(GROUPS_KEY, _groups);
+  return _groups[idx];
+}
+
+export async function deleteGroup(id: string): Promise<boolean> {
+  // Prevent deleting the "Everyone" group (g4)
+  if (id === "g4") return false;
+  const idx = _groups.findIndex((g) => g.id === id);
+  if (idx === -1) return false;
+  _groups.splice(idx, 1);
+  saveJson(GROUPS_KEY, _groups);
+  return true;
+}
+
+/** Check if any posts reference this group */
+export async function groupHasPosts(groupId: string): Promise<boolean> {
+  return _posts.some((p) => p.visibleToGroupId === groupId);
+}
+
+/* ── Posts ────────────────────────────────────────── */
+
 export async function listFeed(): Promise<AvailabilityPost[]> {
-  // Newest first
   return [..._posts].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
+}
+
+export async function listPostsByGroup(groupId: string): Promise<AvailabilityPost[]> {
+  return _posts
+    .filter((p) => p.visibleToGroupId === groupId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 export async function getPost(id: string): Promise<AvailabilityPost | undefined> {
@@ -90,7 +144,7 @@ export async function createPost(
     createdAt: new Date().toISOString(),
   };
   _posts = [post, ..._posts];
-  _savePostsToStorage();
+  saveJson(POSTS_KEY, _posts);
   return post;
 }
 
@@ -100,19 +154,50 @@ export async function updatePost(
 ): Promise<AvailabilityPost | undefined> {
   const idx = _posts.findIndex((p) => p.id === id && p.authorId === mockMe.id);
   if (idx === -1) return undefined;
-  const updated = { ..._posts[idx], ...input };
-  _posts[idx] = updated;
-  _savePostsToStorage();
-  return updated;
+  _posts[idx] = { ..._posts[idx], ...input };
+  saveJson(POSTS_KEY, _posts);
+  return _posts[idx];
 }
 
 export async function deletePost(id: string): Promise<boolean> {
   const idx = _posts.findIndex((p) => p.id === id && p.authorId === mockMe.id);
   if (idx === -1) return false;
   _posts.splice(idx, 1);
-  _savePostsToStorage();
+  saveJson(POSTS_KEY, _posts);
   return true;
 }
+
+/* ── Chat ────────────────────────────────────────── */
+
+export async function listChatMessages(groupId: string): Promise<ChatMessage[]> {
+  return _chats
+    .filter((m) => m.groupId === groupId)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+}
+
+export async function sendChatMessage(
+  groupId: string,
+  body: string,
+): Promise<ChatMessage> {
+  const msg: ChatMessage = {
+    id: `m_${Math.random().toString(36).slice(2, 9)}`,
+    groupId,
+    authorId: mockMe.id,
+    body,
+    createdAt: new Date().toISOString(),
+  };
+  _chats = [..._chats, msg];
+  saveJson(CHAT_KEY, _chats);
+  return msg;
+}
+
+export async function getLatestChatMessage(groupId: string): Promise<ChatMessage | undefined> {
+  const msgs = _chats.filter((m) => m.groupId === groupId);
+  if (msgs.length === 0) return undefined;
+  return msgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+}
+
+/* ── Privacy ─────────────────────────────────────── */
 
 export async function getPrivacy(): Promise<PrivacySettings> {
   return _privacy;
