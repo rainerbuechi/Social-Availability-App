@@ -44,6 +44,13 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+export type FriendshipStatus = "none" | "pending" | "accepted";
+
+export interface Friendship {
+  userId: string;
+  status: FriendshipStatus;
+}
+
 export interface PrivacySettings {
   defaultGroupId: string;
   defaultPrecision: LocationPrecision;
