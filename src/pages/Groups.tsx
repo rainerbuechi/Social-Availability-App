@@ -63,7 +63,7 @@ export default function Groups() {
   useEffect(() => { refresh(); }, []);
 
   const userById = (id: string) => users.find((u) => u.id === id);
-  const nonCurrentUsers = users.filter((u) => u.id !== "u_me");
+  const availableMembers = friends;
 
   const openCreate = () => {
     setEditingGroup(null);
