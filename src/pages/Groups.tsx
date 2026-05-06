@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, MessageCircle } from "lucide-react";
-import { listGroups, listUsers, createGroup, updateGroup, deleteGroup, groupHasPosts, getLatestChatMessage } from "@/lib/api";
+import { listGroups, listUsers, createGroup, updateGroup, deleteGroup, groupHasPosts, getLatestChatMessage, listAcceptedFriends } from "@/lib/api";
 import { FriendGroup, User, ChatMessage } from "@/lib/types";
 import { toast } from "sonner";
 import {
@@ -31,7 +31,7 @@ const EMOJI_OPTIONS = ["💛", "📚", "💪", "🌎", "🎉", "☕", "🏠", "�
 export default function Groups() {
   const navigate = useNavigate();
   const [groups, setGroups] = useState<FriendGroup[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [friends, setFriends] = useState<User[]>([]);
   const [latestMessages, setLatestMessages] = useState<Record<string, ChatMessage>>({});
 
   // Dialog state
@@ -46,9 +46,10 @@ export default function Groups() {
   const [deleteHasPosts, setDeleteHasPosts] = useState(false);
 
   const refresh = async () => {
-    const [gs, us] = await Promise.all([listGroups(), listUsers()]);
+    const [gs, us, fr] = await Promise.all([listGroups(), listUsers(), listAcceptedFriends()]);
     setGroups(gs);
     setUsers(us);
+    setFriends(fr);
     // Load latest messages for each group
     const msgs: Record<string, ChatMessage> = {};
     for (const g of gs) {
