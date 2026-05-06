@@ -13,6 +13,9 @@ export interface User {
   id: string;
   name: string;
   username: string;
+  email: string;
+  /** Prototype-only field. Replace with Supabase Auth. */
+  password?: string;
   avatarUrl?: string;
 }
 

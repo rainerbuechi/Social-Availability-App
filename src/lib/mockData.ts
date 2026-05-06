@@ -4,16 +4,18 @@ export const currentUser: User = {
   id: "u_me",
   name: "You",
   username: "you",
+  email: "you@example.com",
+  password: "password",
 };
 
 export const users: User[] = [
   currentUser,
-  { id: "u1", name: "Maya Patel", username: "maya" },
-  { id: "u2", name: "Jordan Lee", username: "jord" },
-  { id: "u3", name: "Sam Rivera", username: "samr" },
-  { id: "u4", name: "Alex Chen", username: "alexc" },
-  { id: "u5", name: "Riley Kim", username: "rileyk" },
-  { id: "u6", name: "Taylor Brooks", username: "tbrooks" },
+  { id: "u1", name: "Maya Patel", username: "maya", email: "maya@example.com", password: "password" },
+  { id: "u2", name: "Jordan Lee", username: "jord", email: "jord@example.com", password: "password" },
+  { id: "u3", name: "Sam Rivera", username: "samr", email: "samr@example.com", password: "password" },
+  { id: "u4", name: "Alex Chen", username: "alexc", email: "alexc@example.com", password: "password" },
+  { id: "u5", name: "Riley Kim", username: "rileyk", email: "rileyk@example.com", password: "password" },
+  { id: "u6", name: "Taylor Brooks", username: "tbrooks", email: "tbrooks@example.com", password: "password" },
 ];
 
 export const groups: FriendGroup[] = [

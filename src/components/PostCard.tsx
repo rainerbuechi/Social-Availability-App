@@ -29,7 +29,7 @@ export default function PostCard({ post, onDeleted }: Props) {
     listGroups().then((gs) =>
       setGroup(gs.find((g) => g.id === post.visibleToGroupId)),
     );
-    getCurrentUser().then((me) => setIsOwn(me.id === post.authorId));
+    getCurrentUser().then((me) => setIsOwn(me?.id === post.authorId));
   }, [post.authorId, post.visibleToGroupId]);
 
   const initials = author?.name
