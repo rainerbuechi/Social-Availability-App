@@ -208,6 +208,14 @@ export async function getLatestChatMessage(groupId: string): Promise<ChatMessage
   return msgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 }
 
+export async function getRecentMessagesForGroup(groupId: string, limit = 3): Promise<ChatMessage[]> {
+  return _chats
+    .filter((m) => m.groupId === groupId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, limit)
+    .reverse();
+}
+
 /* ── Friends ──────────────────────────────────────── */
 
 export async function listFriendships(): Promise<Friendship[]> {
