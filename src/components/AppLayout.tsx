@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 
 const tabs = [
   { to: "/feed", label: "Feed", icon: Home },
-  { to: "/create", label: "Post", icon: PlusCircle },
   { to: "/friends", label: "Friends", icon: UserPlus },
+  { to: "/create", label: "Post", icon: PlusCircle },
   { to: "/groups", label: "Groups", icon: Users },
   { to: "/profile", label: "Profile", icon: User },
 ];
