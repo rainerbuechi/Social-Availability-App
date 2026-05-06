@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,7 @@ import {
   LocationPrecision,
   StatusType,
 } from "@/lib/types";
-import { createPost, listGroups } from "@/lib/api";
+import { createPost, updatePost, getPost, listGroups } from "@/lib/api";
 
 const PRECISIONS: { value: LocationPrecision; label: string; hint: string }[] = [
   { value: "hidden", label: "Hidden", hint: "No location shared" },
@@ -26,6 +26,9 @@ const toLocalTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 export default function CreateStatus() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get("edit");
+
   const [status, setStatus] = useState<StatusType>("free");
   const [message, setMessage] = useState("");
   const now = new Date();
@@ -36,13 +39,33 @@ export default function CreateStatus() {
   const [precision, setPrecision] = useState<LocationPrecision>("approximate");
   const [groups, setGroups] = useState<FriendGroup[]>([]);
   const [groupId, setGroupId] = useState<string>("");
+  const [loaded, setLoaded] = useState(!editId);
 
   useEffect(() => {
     listGroups().then((gs) => {
       setGroups(gs);
-      if (gs[0]) setGroupId(gs[0].id);
+      if (!editId && gs[0]) setGroupId(gs[0].id);
     });
-  }, []);
+  }, [editId]);
+
+  useEffect(() => {
+    if (!editId) return;
+    getPost(editId).then((p) => {
+      if (!p) {
+        toast.error("Post not found");
+        navigate("/feed");
+        return;
+      }
+      setStatus(p.status);
+      setMessage(p.message ?? "");
+      setStart(toLocalTime(new Date(p.startTime)));
+      setEnd(toLocalTime(new Date(p.endTime)));
+      setLocationName(p.locationName ?? "");
+      setPrecision(p.locationPrecision);
+      setGroupId(p.visibleToGroupId);
+      setLoaded(true);
+    });
+  }, [editId, navigate]);
 
   const buildIso = (hhmm: string) => {
     const [h, m] = hhmm.split(":").map(Number);
@@ -54,7 +77,7 @@ export default function CreateStatus() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!groupId) return;
-    await createPost({
+    const payload = {
       status,
       message: message.trim() || undefined,
       startTime: buildIso(start),
@@ -62,10 +85,19 @@ export default function CreateStatus() {
       locationName: locationName.trim() || undefined,
       locationPrecision: precision,
       visibleToGroupId: groupId,
-    });
-    toast.success("You're down!");
+    };
+
+    if (editId) {
+      await updatePost(editId, payload);
+      toast.success("Post updated!");
+    } else {
+      await createPost(payload);
+      toast.success("You're down!");
+    }
     navigate("/feed");
   };
+
+  if (!loaded) return null;
 
   return (
     <div>
@@ -77,7 +109,9 @@ export default function CreateStatus() {
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <h1 className="text-lg font-semibold">Share availability</h1>
+        <h1 className="text-lg font-semibold">
+          {editId ? "Edit availability" : "Share availability"}
+        </h1>
       </header>
 
       <form onSubmit={onSubmit} className="space-y-6 p-4">
@@ -203,7 +237,7 @@ export default function CreateStatus() {
         </section>
 
         <Button type="submit" className="h-12 w-full rounded-full text-base">
-          I'm down
+          {editId ? "Save changes" : "I'm down"}
         </Button>
       </form>
     </div>

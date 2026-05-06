@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus } from "lucide-react";
 import PostCard from "@/components/PostCard";
@@ -8,9 +8,13 @@ import { AvailabilityPost } from "@/lib/types";
 export default function Feed() {
   const [posts, setPosts] = useState<AvailabilityPost[]>([]);
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     listFeed().then(setPosts);
   }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   return (
     <div>
@@ -37,7 +41,7 @@ export default function Feed() {
             No one's down yet. Be the first 👀
           </div>
         ) : (
-          posts.map((p) => <PostCard key={p.id} post={p} />)
+          posts.map((p) => <PostCard key={p.id} post={p} onDeleted={refresh} />)
         )}
       </div>
     </div>

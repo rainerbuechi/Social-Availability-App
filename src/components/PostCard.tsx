@@ -1,23 +1,35 @@
 import { useEffect, useState } from "react";
-import { MapPin, Eye, EyeOff } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { MapPin, Eye, EyeOff, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { AvailabilityPost, FriendGroup, User } from "@/lib/types";
 import { formatTimeRange, relativeTime } from "@/lib/status";
 import StatusBadge from "./StatusBadge";
-import { getUser, listGroups } from "@/lib/api";
+import { getUser, listGroups, getCurrentUser, deletePost } from "@/lib/api";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 
 interface Props {
   post: AvailabilityPost;
+  onDeleted?: () => void;
 }
 
-export default function PostCard({ post }: Props) {
+export default function PostCard({ post, onDeleted }: Props) {
+  const navigate = useNavigate();
   const [author, setAuthor] = useState<User | undefined>();
   const [group, setGroup] = useState<FriendGroup | undefined>();
+  const [isOwn, setIsOwn] = useState(false);
 
   useEffect(() => {
     getUser(post.authorId).then(setAuthor);
     listGroups().then((gs) =>
       setGroup(gs.find((g) => g.id === post.visibleToGroupId)),
     );
+    getCurrentUser().then((me) => setIsOwn(me.id === post.authorId));
   }, [post.authorId, post.visibleToGroupId]);
 
   const initials = author?.name
@@ -35,6 +47,18 @@ export default function PostCard({ post }: Props) {
     return post.locationName;
   })();
 
+  const handleDelete = async () => {
+    const ok = await deletePost(post.id);
+    if (ok) {
+      toast.success("Post deleted");
+      onDeleted?.();
+    }
+  };
+
+  const handleEdit = () => {
+    navigate(`/create?edit=${post.id}`);
+  };
+
   return (
     <article className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <header className="flex items-center gap-3">
@@ -50,6 +74,31 @@ export default function PostCard({ post }: Props) {
           </p>
         </div>
         <StatusBadge status={post.status} size="sm" />
+        {isOwn && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted"
+                aria-label="Post actions"
+              >
+                <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleEdit}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleDelete}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </header>
 
       {post.message && (
