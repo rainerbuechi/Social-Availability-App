@@ -1,0 +1,28 @@
+# Notes / Commands for correct Git usage
+
+## Branches
+- main = stable shared version
+- feature branches = active work
+
+### How to create a new Branch: ( Run these in the order from top -> bottom):
+git checkout main
+git pull origin main
+git checkout -b feature/my-feature-name
+
+
+## Daily working routine:
+
+Before you start coding:
+git checkout main
+git pull origin main
+git checkout -b feature/my-feature-name
+
+While working:
+git status
+git add .
+git commit -m "add post validation"
+
+When working:
+git push -u origin feature/my-feature-name
+
+Then on GitHub: Open Pull Request → friend reviews → merge into main
