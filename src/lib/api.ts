@@ -49,6 +49,14 @@ function saveJson(key: string, data: unknown): void {
 let _posts: AvailabilityPost[] = loadJson<AvailabilityPost[]>(POSTS_KEY, [...mockPosts]);
 let _groups: FriendGroup[] = loadJson<FriendGroup[]>(GROUPS_KEY, [...mockGroups]);
 let _chats: ChatMessage[] = loadJson<ChatMessage[]>(CHAT_KEY, []);
+let _friends: Friendship[] = loadJson<Friendship[]>(FRIENDS_KEY, [
+  { userId: "u1", status: "accepted" },
+  { userId: "u2", status: "accepted" },
+  { userId: "u3", status: "accepted" },
+  { userId: "u4", status: "accepted" },
+  { userId: "u5", status: "accepted" },
+  { userId: "u6", status: "accepted" },
+]);
 let _privacy: PrivacySettings = { ...defaultPrivacy };
 
 /* ── Users ───────────────────────────────────────── */
