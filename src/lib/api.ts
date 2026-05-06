@@ -76,6 +76,10 @@ export async function listFeed(): Promise<AvailabilityPost[]> {
   );
 }
 
+export async function getPost(id: string): Promise<AvailabilityPost | undefined> {
+  return _posts.find((p) => p.id === id);
+}
+
 export async function createPost(
   input: Omit<AvailabilityPost, "id" | "authorId" | "createdAt">,
 ): Promise<AvailabilityPost> {
@@ -88,6 +92,26 @@ export async function createPost(
   _posts = [post, ..._posts];
   _savePostsToStorage();
   return post;
+}
+
+export async function updatePost(
+  id: string,
+  input: Omit<AvailabilityPost, "id" | "authorId" | "createdAt">,
+): Promise<AvailabilityPost | undefined> {
+  const idx = _posts.findIndex((p) => p.id === id && p.authorId === mockMe.id);
+  if (idx === -1) return undefined;
+  const updated = { ..._posts[idx], ...input };
+  _posts[idx] = updated;
+  _savePostsToStorage();
+  return updated;
+}
+
+export async function deletePost(id: string): Promise<boolean> {
+  const idx = _posts.findIndex((p) => p.id === id && p.authorId === mockMe.id);
+  if (idx === -1) return false;
+  _posts.splice(idx, 1);
+  _savePostsToStorage();
+  return true;
 }
 
 export async function getPrivacy(): Promise<PrivacySettings> {
