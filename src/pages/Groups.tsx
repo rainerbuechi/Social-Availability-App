@@ -284,7 +284,7 @@ export default function Groups() {
             <div className="space-y-2">
               <Label>Members</Label>
               <div className="max-h-40 space-y-1 overflow-y-auto">
-                {nonCurrentUsers.map((u) => {
+                {availableMembers.map((u) => {
                   const selected = formMembers.includes(u.id);
                   return (
                     <button
