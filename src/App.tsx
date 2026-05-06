@@ -8,6 +8,8 @@ import Login from "./pages/Login";
 import Feed from "./pages/Feed";
 import CreateStatus from "./pages/CreateStatus";
 import Groups from "./pages/Groups";
+import GroupDetail from "./pages/GroupDetail";
+import GroupChat from "./pages/GroupChat";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -25,6 +27,8 @@ const App = () => (
             <Route path="/feed" element={<Feed />} />
             <Route path="/create" element={<CreateStatus />} />
             <Route path="/groups" element={<Groups />} />
+            <Route path="/groups/:groupId" element={<GroupDetail />} />
+            <Route path="/groups/:groupId/chat" element={<GroupChat />} />
             <Route path="/profile" element={<Profile />} />
           </Route>
           <Route path="*" element={<NotFound />} />
