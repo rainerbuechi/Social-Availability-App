@@ -36,6 +36,14 @@ export interface AvailabilityPost {
   createdAt: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  groupId: string;
+  authorId: string;
+  body: string;
+  createdAt: string;
+}
+
 export interface PrivacySettings {
   defaultGroupId: string;
   defaultPrecision: LocationPrecision;
