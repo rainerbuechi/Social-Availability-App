@@ -6,7 +6,9 @@
 import {
   AvailabilityPost,
   ChatMessage,
+  Friendship,
   FriendGroup,
+  FriendshipStatus,
   PrivacySettings,
   User,
 } from "./types";
@@ -23,6 +25,7 @@ import {
 const POSTS_KEY = "availability_posts";
 const GROUPS_KEY = "friend_groups";
 const CHAT_KEY = "chat_messages";
+const FRIENDS_KEY = "friendships";
 
 function loadJson<T>(key: string, fallback: T): T {
   try {
