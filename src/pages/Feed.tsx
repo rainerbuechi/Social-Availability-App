@@ -9,7 +9,7 @@ export default function Feed() {
   const [posts, setPosts] = useState<AvailabilityPost[]>([]);
 
   useEffect(() => {
-    listFeed().then(setPosts);
+    refreshFeed();
   }, []);
 
   return (
