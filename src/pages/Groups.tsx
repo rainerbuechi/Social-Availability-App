@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, MessageCircle } from "lucide-react";
-import { listGroups, listUsers, createGroup, updateGroup, deleteGroup, groupHasPosts, getLatestChatMessage } from "@/lib/api";
+import { listGroups, listUsers, createGroup, updateGroup, deleteGroup, groupHasPosts, getLatestChatMessage, listAcceptedFriends } from "@/lib/api";
 import { FriendGroup, User, ChatMessage } from "@/lib/types";
 import { toast } from "sonner";
 import {
@@ -32,6 +32,7 @@ export default function Groups() {
   const navigate = useNavigate();
   const [groups, setGroups] = useState<FriendGroup[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [friends, setFriends] = useState<User[]>([]);
   const [latestMessages, setLatestMessages] = useState<Record<string, ChatMessage>>({});
 
   // Dialog state
@@ -46,9 +47,10 @@ export default function Groups() {
   const [deleteHasPosts, setDeleteHasPosts] = useState(false);
 
   const refresh = async () => {
-    const [gs, us] = await Promise.all([listGroups(), listUsers()]);
+    const [gs, us, fr] = await Promise.all([listGroups(), listUsers(), listAcceptedFriends()]);
     setGroups(gs);
     setUsers(us);
+    setFriends(fr);
     // Load latest messages for each group
     const msgs: Record<string, ChatMessage> = {};
     for (const g of gs) {
@@ -61,7 +63,7 @@ export default function Groups() {
   useEffect(() => { refresh(); }, []);
 
   const userById = (id: string) => users.find((u) => u.id === id);
-  const nonCurrentUsers = users.filter((u) => u.id !== "u_me");
+  const availableMembers = friends;
 
   const openCreate = () => {
     setEditingGroup(null);
@@ -282,7 +284,7 @@ export default function Groups() {
             <div className="space-y-2">
               <Label>Members</Label>
               <div className="max-h-40 space-y-1 overflow-y-auto">
-                {nonCurrentUsers.map((u) => {
+                {availableMembers.map((u) => {
                   const selected = formMembers.includes(u.id);
                   return (
                     <button

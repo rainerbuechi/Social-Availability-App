@@ -6,7 +6,9 @@
 import {
   AvailabilityPost,
   ChatMessage,
+  Friendship,
   FriendGroup,
+  FriendshipStatus,
   PrivacySettings,
   User,
 } from "./types";
@@ -23,6 +25,7 @@ import {
 const POSTS_KEY = "availability_posts";
 const GROUPS_KEY = "friend_groups";
 const CHAT_KEY = "chat_messages";
+const FRIENDS_KEY = "friendships";
 
 function loadJson<T>(key: string, fallback: T): T {
   try {
@@ -46,6 +49,14 @@ function saveJson(key: string, data: unknown): void {
 let _posts: AvailabilityPost[] = loadJson<AvailabilityPost[]>(POSTS_KEY, [...mockPosts]);
 let _groups: FriendGroup[] = loadJson<FriendGroup[]>(GROUPS_KEY, [...mockGroups]);
 let _chats: ChatMessage[] = loadJson<ChatMessage[]>(CHAT_KEY, []);
+let _friends: Friendship[] = loadJson<Friendship[]>(FRIENDS_KEY, [
+  { userId: "u1", status: "accepted" },
+  { userId: "u2", status: "accepted" },
+  { userId: "u3", status: "accepted" },
+  { userId: "u4", status: "accepted" },
+  { userId: "u5", status: "accepted" },
+  { userId: "u6", status: "accepted" },
+]);
 let _privacy: PrivacySettings = { ...defaultPrivacy };
 
 /* ── Users ───────────────────────────────────────── */
@@ -195,6 +206,52 @@ export async function getLatestChatMessage(groupId: string): Promise<ChatMessage
   const msgs = _chats.filter((m) => m.groupId === groupId);
   if (msgs.length === 0) return undefined;
   return msgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+}
+
+/* ── Friends ──────────────────────────────────────── */
+
+export async function listFriendships(): Promise<Friendship[]> {
+  return [..._friends];
+}
+
+export async function getFriendshipStatus(userId: string): Promise<FriendshipStatus> {
+  const f = _friends.find((fr) => fr.userId === userId);
+  return f?.status ?? "none";
+}
+
+export async function listAcceptedFriends(): Promise<User[]> {
+  const accepted = _friends.filter((f) => f.status === "accepted").map((f) => f.userId);
+  return mockUsers.filter((u) => accepted.includes(u.id));
+}
+
+export async function sendFriendRequest(userId: string): Promise<Friendship> {
+  const existing = _friends.find((f) => f.userId === userId);
+  if (existing) {
+    existing.status = "pending";
+  } else {
+    _friends.push({ userId, status: "pending" });
+  }
+  saveJson(FRIENDS_KEY, _friends);
+  return _friends.find((f) => f.userId === userId)!;
+}
+
+export async function acceptFriendRequest(userId: string): Promise<Friendship> {
+  const existing = _friends.find((f) => f.userId === userId);
+  if (existing) {
+    existing.status = "accepted";
+  } else {
+    _friends.push({ userId, status: "accepted" });
+  }
+  saveJson(FRIENDS_KEY, _friends);
+  return _friends.find((f) => f.userId === userId)!;
+}
+
+export async function removeFriend(userId: string): Promise<boolean> {
+  const idx = _friends.findIndex((f) => f.userId === userId);
+  if (idx === -1) return false;
+  _friends.splice(idx, 1);
+  saveJson(FRIENDS_KEY, _friends);
+  return true;
 }
 
 /* ── Privacy ─────────────────────────────────────── */

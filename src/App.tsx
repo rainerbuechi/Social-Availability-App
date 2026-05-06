@@ -7,6 +7,7 @@ import AppLayout from "./components/AppLayout";
 import Login from "./pages/Login";
 import Feed from "./pages/Feed";
 import CreateStatus from "./pages/CreateStatus";
+import Friends from "./pages/Friends";
 import Groups from "./pages/Groups";
 import GroupDetail from "./pages/GroupDetail";
 import GroupChat from "./pages/GroupChat";
@@ -26,6 +27,7 @@ const App = () => (
           <Route element={<AppLayout />}>
             <Route path="/feed" element={<Feed />} />
             <Route path="/create" element={<CreateStatus />} />
+            <Route path="/friends" element={<Friends />} />
             <Route path="/groups" element={<Groups />} />
             <Route path="/groups/:groupId" element={<GroupDetail />} />
             <Route path="/groups/:groupId/chat" element={<GroupChat />} />
