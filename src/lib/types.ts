@@ -119,3 +119,19 @@ export interface GroupSuggestion {
   cardDescription: string;
   createdAt: string;
 }
+
+export type MapPinCategory = "suggestion" | "pool" | "post" | "meetup";
+
+export interface MapPin {
+  id: string;
+  title: string;
+  category: MapPinCategory;
+  description?: string;
+  city: string;
+  area?: string;
+  address?: string;
+  lat: number;
+  lng: number;
+  linkedEntityId?: string;   // poolId | postId | suggestionId
+  linkedEntityType?: "pool" | "post" | "suggestion";
+}
