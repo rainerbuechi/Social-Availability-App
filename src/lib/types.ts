@@ -54,6 +54,14 @@ export interface Friendship {
   status: FriendshipStatus;
 }
 
+export interface PostParticipation {
+  id: string;
+  postId: string;
+  userId: string;
+  responseMessage?: string;
+  createdAt: string;
+}
+
 export interface PrivacySettings {
   defaultGroupId: string;
   defaultPrecision: LocationPrecision;
