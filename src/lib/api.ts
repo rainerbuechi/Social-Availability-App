@@ -63,6 +63,7 @@ let _friends: Friendship[] = loadJson<Friendship[]>(FRIENDS_KEY, [
   { userId: "u6", status: "accepted" },
 ]);
 let _privacy: PrivacySettings = { ...defaultPrivacy };
+let _participants: PostParticipation[] = loadJson<PostParticipation[]>(PARTICIPANTS_KEY, []);
 
 /* ── Auth (prototype-only — replace with Supabase Auth) ── */
 
