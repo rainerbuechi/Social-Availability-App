@@ -9,6 +9,7 @@ import {
   Friendship,
   FriendGroup,
   FriendshipStatus,
+  PostParticipation,
   PrivacySettings,
   User,
 } from "./types";
