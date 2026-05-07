@@ -29,6 +29,7 @@ const CHAT_KEY = "chat_messages";
 const FRIENDS_KEY = "friendships";
 const USERS_KEY = "local_users";
 const AUTH_KEY = "current_user_id";
+const PARTICIPANTS_KEY = "post_participants";
 
 function loadJson<T>(key: string, fallback: T): T {
   try {
