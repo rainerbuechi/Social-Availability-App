@@ -386,3 +386,52 @@ export async function updatePrivacy(
   _privacy = { ..._privacy, ...patch };
   return _privacy;
 }
+
+/* ── Participation ───────────────────────────────── */
+
+export async function listPostParticipants(postId: string): Promise<PostParticipation[]> {
+  return _participants
+    .filter((p) => p.postId === postId)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+}
+
+export async function joinPost(postId: string, responseMessage?: string): Promise<PostParticipation> {
+  const me = _getMe();
+  const meId = me?.id ?? "u_me";
+  const existing = _participants.find((p) => p.postId === postId && p.userId === meId);
+  if (existing) {
+    if (responseMessage !== undefined) existing.responseMessage = responseMessage;
+    saveJson(PARTICIPANTS_KEY, _participants);
+    return existing;
+  }
+  const entry: PostParticipation = {
+    id: `pp_${Math.random().toString(36).slice(2, 9)}`,
+    postId,
+    userId: meId,
+    responseMessage: responseMessage || undefined,
+    createdAt: new Date().toISOString(),
+  };
+  _participants.push(entry);
+  saveJson(PARTICIPANTS_KEY, _participants);
+  return entry;
+}
+
+export async function leavePost(postId: string): Promise<boolean> {
+  const me = _getMe();
+  const meId = me?.id ?? "u_me";
+  const idx = _participants.findIndex((p) => p.postId === postId && p.userId === meId);
+  if (idx === -1) return false;
+  _participants.splice(idx, 1);
+  saveJson(PARTICIPANTS_KEY, _participants);
+  return true;
+}
+
+export async function isCurrentUserParticipating(postId: string): Promise<boolean> {
+  const me = _getMe();
+  const meId = me?.id ?? "u_me";
+  return _participants.some((p) => p.postId === postId && p.userId === meId);
+}
+
+export async function getParticipantCount(postId: string): Promise<number> {
+  return _participants.filter((p) => p.postId === postId).length;
+}
