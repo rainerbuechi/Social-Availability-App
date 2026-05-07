@@ -28,6 +28,7 @@ const App = () => (
           <Route element={<AppLayout />}>
             <Route path="/feed" element={<Feed />} />
             <Route path="/create" element={<CreateStatus />} />
+            <Route path="/posts/:postId" element={<PostDetail />} />
             <Route path="/friends" element={<Friends />} />
             <Route path="/groups" element={<Groups />} />
             <Route path="/groups/:groupId" element={<GroupDetail />} />
