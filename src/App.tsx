@@ -11,6 +11,7 @@ import Friends from "./pages/Friends";
 import Groups from "./pages/Groups";
 import GroupDetail from "./pages/GroupDetail";
 import GroupChat from "./pages/GroupChat";
+import PostDetail from "./pages/PostDetail";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound.tsx";
 
