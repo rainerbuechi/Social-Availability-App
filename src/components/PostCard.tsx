@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Eye, EyeOff, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { MapPin, Eye, EyeOff, MoreHorizontal, Pencil, Trash2, Users } from "lucide-react";
 import { AvailabilityPost, FriendGroup, User } from "@/lib/types";
 import { formatTimeRange, relativeTime } from "@/lib/status";
 import StatusBadge from "./StatusBadge";
-import { getUser, listGroups, getCurrentUser, deletePost } from "@/lib/api";
+import { getUser, listGroups, getCurrentUser, deletePost, getParticipantCount, isCurrentUserParticipating } from "@/lib/api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +23,8 @@ export default function PostCard({ post, onDeleted }: Props) {
   const [author, setAuthor] = useState<User | undefined>();
   const [group, setGroup] = useState<FriendGroup | undefined>();
   const [isOwn, setIsOwn] = useState(false);
+  const [participantCount, setParticipantCount] = useState(0);
+  const [imDown, setImDown] = useState(false);
 
   useEffect(() => {
     getUser(post.authorId).then(setAuthor);
@@ -30,7 +32,9 @@ export default function PostCard({ post, onDeleted }: Props) {
       setGroup(gs.find((g) => g.id === post.visibleToGroupId)),
     );
     getCurrentUser().then((me) => setIsOwn(me?.id === post.authorId));
-  }, [post.authorId, post.visibleToGroupId]);
+    getParticipantCount(post.id).then(setParticipantCount);
+    isCurrentUserParticipating(post.id).then(setImDown);
+  }, [post]);
 
   const initials = author?.name
     .split(" ")
@@ -47,7 +51,8 @@ export default function PostCard({ post, onDeleted }: Props) {
     return post.locationName;
   })();
 
-  const handleDelete = async () => {
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     const ok = await deletePost(post.id);
     if (ok) {
       toast.success("Post deleted");
@@ -55,12 +60,16 @@ export default function PostCard({ post, onDeleted }: Props) {
     }
   };
 
-  const handleEdit = () => {
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
     navigate(`/create?edit=${post.id}`);
   };
 
   return (
-    <article className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+    <article
+      className="cursor-pointer rounded-2xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-accent/30"
+      onClick={() => navigate(`/posts/${post.id}`)}
+    >
       <header className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-soft text-sm font-semibold text-primary">
           {initials || "?"}
@@ -80,6 +89,7 @@ export default function PostCard({ post, onDeleted }: Props) {
               <button
                 className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted"
                 aria-label="Post actions"
+                onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
               </button>
@@ -125,6 +135,15 @@ export default function PostCard({ post, onDeleted }: Props) {
             <Eye className="h-3.5 w-3.5" />
             <span>
               {group.emoji} {group.name}
+            </span>
+          </div>
+        )}
+        {(participantCount > 0 || imDown) && (
+          <div className="flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            <span>
+              {participantCount} down
+              {imDown && <span className="ml-1 text-primary font-medium">· You're down</span>}
             </span>
           </div>
         )}
