@@ -11,6 +11,7 @@ import Friends from "./pages/Friends";
 import Groups from "./pages/Groups";
 import GroupDetail from "./pages/GroupDetail";
 import GroupChat from "./pages/GroupChat";
+import PostDetail from "./pages/PostDetail";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -27,6 +28,7 @@ const App = () => (
           <Route element={<AppLayout />}>
             <Route path="/feed" element={<Feed />} />
             <Route path="/create" element={<CreateStatus />} />
+            <Route path="/posts/:postId" element={<PostDetail />} />
             <Route path="/friends" element={<Friends />} />
             <Route path="/groups" element={<Groups />} />
             <Route path="/groups/:groupId" element={<GroupDetail />} />
