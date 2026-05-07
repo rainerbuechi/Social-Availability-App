@@ -112,10 +112,6 @@ export default function Groups() {
   };
 
   const handleDeleteClick = async (g: FriendGroup) => {
-    if (g.id === "g4") {
-      toast.error("Can't delete the Everyone group");
-      return;
-    }
     const hasPosts = await groupHasPosts(g.id);
     setDeleteHasPosts(hasPosts);
     setDeleteTarget(g);
@@ -164,12 +160,10 @@ export default function Groups() {
           return (
             <li
               key={g.id}
-              className="rounded-2xl border border-border bg-card p-4"
+              className="rounded-2xl border border-border bg-card p-4 cursor-pointer"
+              onClick={() => navigate(`/groups/${g.id}`)}
             >
-              <div
-                className="flex items-center justify-between cursor-pointer"
-                onClick={() => navigate(`/groups/${g.id}`)}
-              >
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-soft text-xl">
                     {g.emoji}
@@ -195,14 +189,12 @@ export default function Groups() {
                   >
                     Edit
                   </button>
-                  {g.id !== "g4" && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteClick(g); }}
-                      className="text-sm text-destructive font-medium"
-                    >
-                      Delete
-                    </button>
-                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteClick(g); }}
+                    className="text-sm text-destructive font-medium"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
 

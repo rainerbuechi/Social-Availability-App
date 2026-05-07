@@ -8,18 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { STATUS_META, STATUS_ORDER } from "@/lib/status";
-import {
-  FriendGroup,
-  LocationPrecision,
-  StatusType,
-} from "@/lib/types";
+import { FriendGroup, LocationPrecision, StatusType } from "@/lib/types";
 import { createPost, updatePost, getPost, listGroups } from "@/lib/api";
 
-const PRECISIONS: { value: LocationPrecision; label: string; hint: string }[] = [
-  { value: "hidden", label: "Hidden", hint: "No location shared" },
-  { value: "approximate", label: "Approximate", hint: "Near a place" },
-  { value: "exact", label: "Exact", hint: "Show the spot" },
-];
 
 const pad = (n: number) => n.toString().padStart(2, "0");
 const toLocalTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -36,7 +27,6 @@ export default function CreateStatus() {
   const [start, setStart] = useState(toLocalTime(now));
   const [end, setEnd] = useState(toLocalTime(later));
   const [locationName, setLocationName] = useState("");
-  const [precision, setPrecision] = useState<LocationPrecision>("approximate");
   const [groups, setGroups] = useState<FriendGroup[]>([]);
   const [groupId, setGroupId] = useState<string>("");
   const [loaded, setLoaded] = useState(!editId);
@@ -61,7 +51,6 @@ export default function CreateStatus() {
       setStart(toLocalTime(new Date(p.startTime)));
       setEnd(toLocalTime(new Date(p.endTime)));
       setLocationName(p.locationName ?? "");
-      setPrecision(p.locationPrecision);
       setGroupId(p.visibleToGroupId);
       setLoaded(true);
     });
@@ -83,7 +72,7 @@ export default function CreateStatus() {
       startTime: buildIso(start),
       endTime: buildIso(end),
       locationName: locationName.trim() || undefined,
-      locationPrecision: precision,
+      locationPrecision: "exact" as LocationPrecision,
       visibleToGroupId: groupId,
     };
 
@@ -183,27 +172,6 @@ export default function CreateStatus() {
             onChange={(e) => setLocationName(e.target.value)}
             placeholder="e.g. Blue Bottle, Mission"
           />
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            {PRECISIONS.map((p) => {
-              const active = p.value === precision;
-              return (
-                <button
-                  key={p.value}
-                  type="button"
-                  onClick={() => setPrecision(p.value)}
-                  className={cn(
-                    "rounded-lg border p-2 text-left text-xs transition",
-                    active
-                      ? "border-primary bg-primary-soft"
-                      : "border-border bg-card",
-                  )}
-                >
-                  <div className="font-semibold">{p.label}</div>
-                  <div className="text-muted-foreground">{p.hint}</div>
-                </button>
-              );
-            })}
-          </div>
         </section>
 
         <section className="space-y-2">

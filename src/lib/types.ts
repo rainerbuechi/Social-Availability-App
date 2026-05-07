@@ -90,3 +90,32 @@ export interface PoolMembership {
   userId: string;
   joinedAt: string;
 }
+
+export type ActivityType = "study" | "coffee" | "lunch" | "walk" | "bar" | "event";
+
+export interface UserLocation {
+  city: string;
+  area?: string;
+  campus?: string;
+}
+
+export interface DiscoverCard {
+  id: string;
+  title: string;
+  type: ActivityType;
+  area: string;
+  city: string;             // "any" means shows everywhere
+  description: string;
+  timeOfDay: "morning" | "afternoon" | "evening" | "any";
+}
+
+export interface GroupSuggestion {
+  id: string;
+  groupId: string;
+  fromUserId: string;
+  cardTitle: string;
+  cardType: ActivityType;
+  cardArea: string;
+  cardDescription: string;
+  createdAt: string;
+}

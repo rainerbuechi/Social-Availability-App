@@ -1,13 +1,13 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Home, PlusCircle, Users, User, UserPlus } from "lucide-react";
+import { Home, PlusCircle, Users, User, Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const tabs = [
-  { to: "/feed", label: "Feed", icon: Home },
-  { to: "/friends", label: "Friends", icon: UserPlus },
-  { to: "/create", label: "Post", icon: PlusCircle },
-  { to: "/groups", label: "Groups", icon: Users },
-  { to: "/profile", label: "Profile", icon: User },
+  { to: "/feed",     label: "Feed",     icon: Home },
+  { to: "/discover", label: "Discover", icon: Compass },
+  { to: "/create",   label: "Post",     icon: PlusCircle },
+  { to: "/groups",   label: "Groups",   icon: Users },
+  { to: "/profile",  label: "Profile",  icon: User },
 ];
 
 export default function AppLayout() {

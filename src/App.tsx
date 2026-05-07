@@ -15,6 +15,7 @@ import PostDetail from "./pages/PostDetail";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound.tsx";
 import PoolDetail from "./pages/PoolDetail";
+import Discover from "./pages/Discover";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/groups/:groupId/chat" element={<GroupChat />} />
             <Route path="/pools/:poolId" element={<PoolDetail />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/discover" element={<Discover />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

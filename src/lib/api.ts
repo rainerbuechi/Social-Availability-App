@@ -4,15 +4,18 @@
  * ⚠️ PROTOTYPE ONLY — no real security. Replace with Supabase Auth + DB later.
  */
 import {
+  ActivityType,        
   AvailabilityPost,
   ChatMessage,
   Friendship,
   FriendGroup,
   FriendshipStatus,
+  GroupSuggestion,     
   PoolMembership,
   PostParticipation,
   PrivacySettings,
   User,
+  UserLocation,       
   WaitingPool,
 } from "./types";
 import {
@@ -34,6 +37,8 @@ const AUTH_KEY = "current_user_id";
 const PARTICIPANTS_KEY = "post_participants";
 const POOLS_KEY = "waiting_pools";
 const POOL_MEMBERS_KEY = "pool_memberships";
+const LOCATION_KEY = "user_location";
+const SUGGESTIONS_KEY = "group_suggestions";
 
 function loadJson<T>(key: string, fallback: T): T {
   try {
@@ -70,6 +75,7 @@ let _privacy: PrivacySettings = { ...defaultPrivacy };
 let _participants: PostParticipation[] = loadJson<PostParticipation[]>(PARTICIPANTS_KEY, []);
 let _pools: WaitingPool[] = loadJson<WaitingPool[]>(POOLS_KEY, []);
 let _poolMembers: PoolMembership[] = loadJson<PoolMembership[]>(POOL_MEMBERS_KEY, []);
+let _suggestions: GroupSuggestion[] = loadJson<GroupSuggestion[]>(SUGGESTIONS_KEY, []);
 
 /* ── Auth (prototype-only — replace with Supabase Auth) ── */
 
@@ -563,4 +569,47 @@ export async function updatePool(
   _pools[idx] = { ..._pools[idx], ...input };
   saveJson(POOLS_KEY, _pools);
   return _pools[idx];
+}
+
+/* ── User Location ───────────────────────────────── */
+
+export async function getUserLocation(): Promise<UserLocation | null> {
+  try {
+    const raw = localStorage.getItem(LOCATION_KEY);
+    return raw ? (JSON.parse(raw) as UserLocation) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveUserLocation(loc: UserLocation): Promise<void> {
+  localStorage.setItem(LOCATION_KEY, JSON.stringify(loc));
+}
+
+/* ── Group Suggestions ───────────────────────────── */
+
+export async function suggestToGroup(
+  groupId: string,
+  card: { title: string; type: ActivityType; area: string; description: string },
+): Promise<GroupSuggestion> {
+  const me = _getMe();
+  const suggestion: GroupSuggestion = {
+    id: `sug_${Math.random().toString(36).slice(2, 9)}`,
+    groupId,
+    fromUserId: me?.id ?? "u_me",
+    cardTitle: card.title,
+    cardType: card.type,
+    cardArea: card.area,
+    cardDescription: card.description,
+    createdAt: new Date().toISOString(),
+  };
+  _suggestions = [suggestion, ..._suggestions];
+  saveJson(SUGGESTIONS_KEY, _suggestions);
+  return suggestion;
+}
+
+export async function listGroupSuggestions(groupId: string): Promise<GroupSuggestion[]> {
+  return _suggestions
+    .filter((s) => s.groupId === groupId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }

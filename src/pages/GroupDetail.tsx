@@ -6,8 +6,9 @@ import {
   getRecentMessagesForGroup, getUser,
   createPool, deletePool, joinPool, leavePool,
   isInPool, listPoolsByGroup, getCurrentUser,
+  listGroupSuggestions,
 } from "@/lib/api";
-import { AvailabilityPost, ChatMessage, FriendGroup, User, WaitingPool } from "@/lib/types";
+import { AvailabilityPost, ChatMessage, FriendGroup, GroupSuggestion, User, WaitingPool } from "@/lib/types";
 import { relativeTime } from "@/lib/status";
 import PostCard from "@/components/PostCard";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,8 @@ export default function GroupDetail() {
   const [pools, setPools] = useState<WaitingPool[]>([]);
   const [poolJoined, setPoolJoined] = useState<Record<string, boolean>>({});
   const [me, setMe] = useState<User | null>(null);
+  const [suggestions, setSuggestions] = useState<GroupSuggestion[]>([]);
+  
 
   // create pool form
   const [showCreate, setShowCreate] = useState(false);
@@ -46,13 +49,14 @@ export default function GroupDetail() {
 
   const refresh = async () => {
     if (!groupId) return;
-    const [g, m, p, msgs, allPools, user] = await Promise.all([
+    const [g, m, p, msgs, allPools, user, sugs] = await Promise.all([
       getGroup(groupId),
       listGroupMembers(groupId),
       listPostsByGroup(groupId),
       getRecentMessagesForGroup(groupId, 3),
       listPoolsByGroup(groupId),
       getCurrentUser(),
+      listGroupSuggestions(groupId),
     ]);
     if (!g) { navigate("/groups"); return; }
     setGroup(g);
@@ -61,7 +65,7 @@ export default function GroupDetail() {
     setRecentMessages(msgs);
     setPools(allPools);
     setMe(user);
-
+    setSuggestions(sugs);
     const authorMap: Record<string, string> = {};
     for (const msg of msgs) {
       if (!authorMap[msg.authorId]) {
@@ -297,6 +301,25 @@ export default function GroupDetail() {
           </div>
         )}
       </div>
+
+      {/* Suggestions from Discover */}
+      {suggestions.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1">
+            ✨ Suggestions
+          </p>
+          <div className="space-y-2">
+            {suggestions.map((s) => (
+              <div key={s.id} className="rounded-xl border border-border bg-card px-3 py-2.5 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{s.cardTitle}</p>
+                  <p className="text-xs text-muted-foreground">{s.cardArea} · {s.cardType}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Chat preview */}
       <Card className="cursor-pointer hover:bg-accent/30 transition-colors" onClick={() => navigate(`/groups/${groupId}/chat`)}>

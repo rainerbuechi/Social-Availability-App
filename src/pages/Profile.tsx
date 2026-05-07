@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Pencil, Check } from "lucide-react";
+import { LogOut, Pencil, Check, UserPlus, ChevronRight } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -12,14 +12,9 @@ import {
   updateCurrentUser,
   logoutLocal,
 } from "@/lib/api";
-import { FriendGroup, LocationPrecision, PrivacySettings, User } from "@/lib/types";
+import { FriendGroup, PrivacySettings, User } from "@/lib/types";
 import { toast } from "sonner";
 
-const PRECISIONS: { value: LocationPrecision; label: string }[] = [
-  { value: "hidden", label: "Hidden" },
-  { value: "approximate", label: "Approximate" },
-  { value: "exact", label: "Exact" },
-];
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -75,6 +70,7 @@ export default function Profile() {
         <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
       </header>
 
+      {/* Avatar + name */}
       <section className="flex items-center gap-4 p-5">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-soft text-xl font-semibold text-primary">
           {initials}
@@ -101,10 +97,26 @@ export default function Profile() {
         )}
       </section>
 
+      {/* Social */}
       <section className="px-5">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Default group
-        </h2>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Social</h2>
+        <div className="rounded-xl border border-border bg-card divide-y divide-border">
+          <button
+            onClick={() => navigate("/friends")}
+            className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/50 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4 text-muted-foreground" />
+              Manage friends
+            </span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+      </section>
+
+      {/* Default group */}
+      <section className="mt-6 px-5">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Default group</h2>
         <div className="space-y-2">
           {groups.map((g) => {
             const active = g.id === privacy.defaultGroupId;
@@ -128,33 +140,9 @@ export default function Profile() {
         </div>
       </section>
 
+      {/* Privacy */}
       <section className="mt-6 px-5">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Default location precision
-        </h2>
-        <div className="grid grid-cols-3 gap-2">
-          {PRECISIONS.map((p) => {
-            const active = p.value === privacy.defaultPrecision;
-            return (
-              <button
-                key={p.value}
-                onClick={() => update({ defaultPrecision: p.value })}
-                className={cn(
-                  "rounded-lg border-2 py-2 text-sm font-medium transition",
-                  active ? "border-primary bg-primary-soft" : "border-border bg-card text-muted-foreground",
-                )}
-              >
-                {p.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="mt-6 px-5">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Privacy
-        </h2>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Privacy</h2>
         <div className="divide-y divide-border rounded-xl border border-border bg-card">
           <div className="flex items-center justify-between p-4">
             <div>
@@ -173,7 +161,8 @@ export default function Profile() {
         </div>
       </section>
 
-      <section className="mt-8 px-5 pb-8">
+      {/* Sign out */}
+      <section className="mt-6 px-5 pb-8">
         <button
           onClick={handleLogout}
           className="flex w-full items-center justify-center gap-2 rounded-full border border-border py-3 text-sm font-medium text-muted-foreground hover:bg-muted"
