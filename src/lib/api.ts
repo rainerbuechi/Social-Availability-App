@@ -9,9 +9,11 @@ import {
   Friendship,
   FriendGroup,
   FriendshipStatus,
+  PoolMembership,
   PostParticipation,
   PrivacySettings,
   User,
+  WaitingPool,
 } from "./types";
 import {
   currentUser as mockMe,
@@ -30,6 +32,8 @@ const FRIENDS_KEY = "friendships";
 const USERS_KEY = "local_users";
 const AUTH_KEY = "current_user_id";
 const PARTICIPANTS_KEY = "post_participants";
+const POOLS_KEY = "waiting_pools";
+const POOL_MEMBERS_KEY = "pool_memberships";
 
 function loadJson<T>(key: string, fallback: T): T {
   try {
@@ -64,6 +68,8 @@ let _friends: Friendship[] = loadJson<Friendship[]>(FRIENDS_KEY, [
 ]);
 let _privacy: PrivacySettings = { ...defaultPrivacy };
 let _participants: PostParticipation[] = loadJson<PostParticipation[]>(PARTICIPANTS_KEY, []);
+let _pools: WaitingPool[] = loadJson<WaitingPool[]>(POOLS_KEY, []);
+let _poolMembers: PoolMembership[] = loadJson<PoolMembership[]>(POOL_MEMBERS_KEY, []);
 
 /* ── Auth (prototype-only — replace with Supabase Auth) ── */
 
@@ -434,4 +440,127 @@ export async function isCurrentUserParticipating(postId: string): Promise<boolea
 
 export async function getParticipantCount(postId: string): Promise<number> {
   return _participants.filter((p) => p.postId === postId).length;
+}
+
+/* ── Waiting Pools ───────────────────────────────── */
+
+export async function listPools(): Promise<WaitingPool[]> {
+  return [..._pools].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+  );
+}
+
+export async function getPool(id: string): Promise<WaitingPool | undefined> {
+  return _pools.find((p) => p.id === id);
+}
+
+export async function createPool(
+  input: Omit<WaitingPool, "id" | "authorId" | "memberIds" | "createdAt">,
+): Promise<WaitingPool> {
+  const me = _getMe();
+  const pool: WaitingPool = {
+    ...input,
+    id: `pool_${Math.random().toString(36).slice(2, 9)}`,
+    authorId: me?.id ?? "u_me",
+    memberIds: [me?.id ?? "u_me"],
+    createdAt: new Date().toISOString(),
+  };
+  _pools = [pool, ..._pools];
+  saveJson(POOLS_KEY, _pools);
+
+  // auto-create a membership record for the author
+  const membership: PoolMembership = {
+    id: `pm_${Math.random().toString(36).slice(2, 9)}`,
+    poolId: pool.id,
+    userId: me?.id ?? "u_me",
+    joinedAt: new Date().toISOString(),
+  };
+  _poolMembers = [..._poolMembers, membership];
+  saveJson(POOL_MEMBERS_KEY, _poolMembers);
+
+  return pool;
+}
+
+export async function deletePool(id: string): Promise<boolean> {
+  const me = _getMe();
+  const idx = _pools.findIndex((p) => p.id === id && p.authorId === me?.id);
+  if (idx === -1) return false;
+  _pools.splice(idx, 1);
+  saveJson(POOLS_KEY, _pools);
+  return true;
+}
+
+export async function joinPool(poolId: string): Promise<boolean> {
+  const me = _getMe();
+  if (!me) return false;
+  const already = _poolMembers.find(
+    (m) => m.poolId === poolId && m.userId === me.id,
+  );
+  if (already) return false;
+
+  const membership: PoolMembership = {
+    id: `pm_${Math.random().toString(36).slice(2, 9)}`,
+    poolId,
+    userId: me.id,
+    joinedAt: new Date().toISOString(),
+  };
+  _poolMembers = [..._poolMembers, membership];
+  saveJson(POOL_MEMBERS_KEY, _poolMembers);
+
+  // update memberIds on the pool itself
+  const pool = _pools.find((p) => p.id === poolId);
+  if (pool && !pool.memberIds.includes(me.id)) {
+    pool.memberIds = [...pool.memberIds, me.id];
+    saveJson(POOLS_KEY, _pools);
+  }
+  return true;
+}
+
+export async function leavePool(poolId: string): Promise<boolean> {
+  const me = _getMe();
+  if (!me) return false;
+  const idx = _poolMembers.findIndex(
+    (m) => m.poolId === poolId && m.userId === me.id,
+  );
+  if (idx === -1) return false;
+  _poolMembers.splice(idx, 1);
+  saveJson(POOL_MEMBERS_KEY, _poolMembers);
+
+  const pool = _pools.find((p) => p.id === poolId);
+  if (pool) {
+    pool.memberIds = pool.memberIds.filter((id) => id !== me.id);
+    saveJson(POOLS_KEY, _pools);
+  }
+  return true;
+}
+
+export async function isInPool(poolId: string): Promise<boolean> {
+  const me = _getMe();
+  if (!me) return false;
+  return _poolMembers.some((m) => m.poolId === poolId && m.userId === me.id);
+}
+
+export async function listPoolMembers(poolId: string): Promise<User[]> {
+  const memberIds = _poolMembers
+    .filter((m) => m.poolId === poolId)
+    .map((m) => m.userId);
+  return _users.filter((u) => memberIds.includes(u.id));
+}
+
+export async function listPoolsByGroup(groupId: string): Promise<WaitingPool[]> {
+  return _pools
+    .filter((p) => p.visibleToGroupId === groupId)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+}
+
+export async function updatePool(
+  id: string,
+  input: Partial<Pick<WaitingPool, "title" | "description" | "date" | "startTime" | "endTime" | "minPeople">>,
+): Promise<WaitingPool | undefined> {
+  const me = _getMe();
+  const idx = _pools.findIndex((p) => p.id === id && p.authorId === me?.id);
+  if (idx === -1) return undefined;
+  _pools[idx] = { ..._pools[idx], ...input };
+  saveJson(POOLS_KEY, _pools);
+  return _pools[idx];
 }

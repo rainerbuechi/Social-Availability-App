@@ -68,3 +68,25 @@ export interface PrivacySettings {
   shareReadReceipts: boolean;
   allowNotifications: boolean;
 }
+
+export interface WaitingPool {
+  id: string;
+  authorId: string;
+  title: string;              // e.g. "Down for anything Saturday"
+  description?: string;       // optional vibe note
+  date: string;               // ISO date string (date only, e.g. "2025-05-10")
+  startTime?: string;         // optional ISO time
+  endTime?: string;           // optional ISO time
+  visibleToGroupId: string;   // reuses your existing group visibility
+  memberIds: string[];        // everyone who joined the pool
+  chatGroupId?: string;       // set once a group chat is created from this pool
+  minPeople: number;          // threshold to unlock chat (default 2)
+  createdAt: string;
+}
+
+export interface PoolMembership {
+  id: string;
+  poolId: string;
+  userId: string;
+  joinedAt: string;
+}
