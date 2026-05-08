@@ -1,13 +1,12 @@
 # Down? - App
 
-# Welcome to your Lovable project
 
--popup für down? wenn invited (für spezifische gruppe zum beispiel)
+-popup für down? wenn invited (für spezifische gruppe zum beispiel) / notifications
 -leiste discovery tab -> vorschläge 
--login/security/
+- Map feautres mit POI und Events mache
+-login/security/contact sharing dur telefonnummere?
   -privacy settings (public, friends...)
--kalender mit button
--chats
+-kalender mit button 
 -ui
 -notifications generell
--
+- feed dur täg trenne
