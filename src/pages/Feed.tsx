@@ -8,7 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { listFeed } from "@/lib/api";
 import { AvailabilityPost } from "@/lib/types";
 
-type FeedView = "today" | "calendar";
+type FeedView = "activity" | "calendar";
 
 const PERSON_COLORS = [
   "#ef4444",
@@ -55,7 +55,7 @@ function toDateParam(date: Date) {
 
 export default function Feed() {
   const [posts, setPosts] = useState<AvailabilityPost[]>([]);
-  const [view, setView] = useState<FeedView>("today");
+  const [view, setView] = useState<FeedView>("activity");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(startOfToday());
 
   const today = useMemo(() => startOfToday(), []);
@@ -67,13 +67,6 @@ export default function Feed() {
   useEffect(() => {
     refresh();
   }, [refresh]);
-
-  const todayPosts = useMemo(() => {
-    return posts.filter((post) => {
-      const postDate = new Date(post.startTime);
-      return isSameCalendarDay(postDate, today);
-    });
-  }, [posts, today]);
 
   const futurePosts = useMemo(() => {
     return posts.filter((post) => new Date(post.startTime) >= today);
@@ -112,14 +105,14 @@ export default function Feed() {
           <div className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-muted p-0.5">
             <button
               type="button"
-              onClick={() => setView("today")}
+              onClick={() => setView("activity")}
               className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                view === "today"
+                view === "activity"
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Today
+              Activity
             </button>
 
             <button
@@ -149,10 +142,10 @@ export default function Feed() {
         </div>
 
         <p className="mt-1 text-xs text-muted-foreground">
-          {view === "today"
-            ? `${todayPosts.length} friends sharing today`
+          {view === "activity"
+            ? `${posts.length} friends sharing`
             : selectedDate
-              ? `${postsForDate.length} posts on ${selectedDate.toLocaleDateString("de-CH", {
+              ? `${postsForDate.length} posts on ${selectedDate.toLocaleDateString("en-US", {
                   day: "numeric",
                   month: "long",
                 })}`
@@ -160,14 +153,14 @@ export default function Feed() {
         </p>
       </header>
 
-      {view === "today" && (
+      {view === "activity" && (
         <div className="space-y-3 p-4">
-          {todayPosts.length === 0 ? (
+          {posts.length === 0 ? (
             <div className="py-20 text-center text-muted-foreground">
-              No one's down today. Be the first 👀
+              No one's down yet. Be the first 👀
             </div>
           ) : (
-            todayPosts.map((post) => (
+            posts.map((post) => (
               <PostCard key={post.id} post={post} onDeleted={refresh} />
             ))
           )}

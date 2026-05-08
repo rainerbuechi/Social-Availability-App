@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
 
 import { toast } from "sonner";
 
@@ -21,6 +22,14 @@ function startOfToday() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return today;
+}
+
+function toDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function parseDateParam(dateParam: string | null) {
@@ -49,19 +58,14 @@ function getInitialDate(dateParam: string | null) {
   const parsedDate = parseDateParam(dateParam);
 
   if (!parsedDate || parsedDate < today) {
-    return new Date();
+    return startOfToday();
   }
 
-  const initialDate = new Date(parsedDate);
-  const now = new Date();
-
-  initialDate.setHours(now.getHours(), now.getMinutes(), 0, 0);
-
-  return initialDate;
+  return parsedDate;
 }
 
 function formatDateLabel(date: Date) {
-  return date.toLocaleDateString("de-CH", {
+  return date.toLocaleDateString("en-US", {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -76,14 +80,25 @@ export default function CreateStatus() {
   const dateParam = searchParams.get("date");
 
   const initialDate = useMemo(() => getInitialDate(dateParam), [dateParam]);
+
+  const initialStartDate = useMemo(() => {
+    const now = new Date();
+    const date = new Date(initialDate);
+    date.setHours(now.getHours(), now.getMinutes(), 0, 0);
+    return date;
+  }, [initialDate]);
+
   const initialEndDate = useMemo(
-    () => new Date(initialDate.getTime() + 60 * 60_000),
-    [initialDate],
+    () => new Date(initialStartDate.getTime() + 60 * 60_000),
+    [initialStartDate],
   );
+
+  const today = useMemo(() => startOfToday(), []);
 
   const [status, setStatus] = useState<StatusType>("free");
   const [message, setMessage] = useState("");
-  const [start, setStart] = useState(toLocalTime(initialDate));
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialDate);
+  const [start, setStart] = useState(toLocalTime(initialStartDate));
   const [end, setEnd] = useState(toLocalTime(initialEndDate));
   const [locationName, setLocationName] = useState("");
   const [groups, setGroups] = useState<FriendGroup[]>([]);
@@ -107,27 +122,37 @@ export default function CreateStatus() {
         return;
       }
 
+      const postStartDate = new Date(post.startTime);
+      const postEndDate = new Date(post.endTime);
+
+      postStartDate.setHours(0, 0, 0, 0);
+
       setStatus(post.status);
       setMessage(post.message ?? "");
+      setSelectedDate(postStartDate);
       setStart(toLocalTime(new Date(post.startTime)));
-      setEnd(toLocalTime(new Date(post.endTime)));
+      setEnd(toLocalTime(postEndDate));
       setLocationName(post.locationName ?? "");
       setGroupId(post.visibleToGroupId);
       setLoaded(true);
     });
   }, [editId, navigate]);
 
-  const buildIso = (hhmm: string, shouldRollToNextDay = false) => {
+  const buildDateTime = (
+    dateValue: Date,
+    hhmm: string,
+    shouldRollToNextDay = false,
+  ) => {
     const [hours, minutes] = hhmm.split(":").map(Number);
 
-    const date = new Date(initialDate);
-    date.setHours(hours, minutes, 0, 0);
+    const nextDate = new Date(dateValue);
+    nextDate.setHours(hours, minutes, 0, 0);
 
     if (shouldRollToNextDay) {
-      date.setDate(date.getDate() + 1);
+      nextDate.setDate(nextDate.getDate() + 1);
     }
 
-    return date.toISOString();
+    return nextDate;
   };
 
   const onSubmit = async (e: FormEvent) => {
@@ -135,11 +160,24 @@ export default function CreateStatus() {
 
     if (!groupId) return;
 
-    const startDate = new Date(buildIso(start));
-    let endDate = new Date(buildIso(end));
+    if (!selectedDate) {
+      toast.error("Please choose a date.");
+      return;
+    }
+
+    const selectedDay = new Date(selectedDate);
+    selectedDay.setHours(0, 0, 0, 0);
+
+    if (selectedDay < today) {
+      toast.error("Please choose today or a future date.");
+      return;
+    }
+
+    const startDate = buildDateTime(selectedDay, start);
+    let endDate = buildDateTime(selectedDay, end);
 
     if (endDate <= startDate) {
-      endDate = new Date(buildIso(end, true));
+      endDate = buildDateTime(selectedDay, end, true);
     }
 
     const payload = {
@@ -166,7 +204,7 @@ export default function CreateStatus() {
   if (!loaded) return null;
 
   return (
-    <div>
+    <div className="min-h-full overflow-x-hidden">
       <header className="safe-top sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur">
         <button
           type="button"
@@ -182,11 +220,9 @@ export default function CreateStatus() {
             {editId ? "Edit availability" : "Share availability"}
           </h1>
 
-          {!editId && (
-            <p className="text-xs text-muted-foreground">
-              {formatDateLabel(initialDate)}
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            {selectedDate ? formatDateLabel(selectedDate) : "Choose a date"}
+          </p>
         </div>
       </header>
 
@@ -231,6 +267,62 @@ export default function CreateStatus() {
             className="resize-none"
             rows={2}
           />
+        </section>
+
+        <section className="space-y-2">
+          <Label>Date</Label>
+
+          <div className="mx-auto w-full max-w-sm rounded-3xl border border-border bg-card p-3 shadow-sm">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => {
+                if (!date) {
+                  setSelectedDate(undefined);
+                  return;
+                }
+
+                const picked = new Date(date);
+                picked.setHours(0, 0, 0, 0);
+
+                if (picked >= today) {
+                  setSelectedDate(picked);
+                }
+              }}
+              disabled={{ before: today }}
+              showOutsideDays={false}
+              className="mx-auto w-full p-0"
+              classNames={{
+                months: "flex w-full justify-center",
+                month: "w-full space-y-4",
+                caption: "relative flex justify-center pt-1 pb-2 items-center",
+                caption_label: "text-sm font-semibold",
+                nav: "flex items-center gap-1",
+                nav_button:
+                  "h-8 w-8 rounded-full border border-border bg-background p-0 opacity-80 hover:opacity-100",
+                nav_button_previous: "absolute left-1",
+                nav_button_next: "absolute right-1",
+                table: "w-full border-collapse space-y-1",
+                head_row: "grid grid-cols-7",
+                head_cell:
+                  "flex h-8 items-center justify-center text-[0.7rem] font-medium text-muted-foreground",
+                row: "grid grid-cols-7",
+                cell: "relative flex h-11 items-center justify-center text-center text-sm",
+                day: "relative flex h-10 w-10 items-center justify-center rounded-2xl text-sm transition-colors hover:bg-muted",
+                day_selected:
+                  "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                day_today: "border border-primary/50 font-semibold",
+                day_disabled: "text-muted-foreground/30 opacity-40",
+                day_outside: "text-muted-foreground/30 opacity-40",
+              }}
+            />
+          </div>
+
+          <p className="text-center text-xs text-muted-foreground">
+            {selectedDate
+              ? `Selected: ${formatDateLabel(selectedDate)}`
+              : "Pick today or a future date"}
+          </p>
         </section>
 
         <section className="grid grid-cols-2 gap-3">
