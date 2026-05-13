@@ -96,7 +96,8 @@ export type ActivityType = "study" | "coffee" | "lunch" | "walk" | "bar" | "even
 export interface UserLocation {
   city: string;
   area?: string;
-  campus?: string;
+  lat?: number;    // geocoded
+  lng?: number;    // geocoded
 }
 
 export interface DiscoverCard {
@@ -120,12 +121,14 @@ export interface GroupSuggestion {
   createdAt: string;
 }
 
-export type MapPinCategory = "suggestion" | "pool" | "post" | "meetup";
+export type MapPinCategory = "place" | "suggestion" | "pool" | "post" | "meetup";
 
 export interface MapPin {
   id: string;
   title: string;
   category: MapPinCategory;
+  placeCategory?: PlaceCategory;
+  source?: string; 
   description?: string;
   city: string;
   area?: string;
@@ -133,5 +136,111 @@ export interface MapPin {
   lat: number;
   lng: number;
   linkedEntityId?: string;   // poolId | postId | suggestionId
-  linkedEntityType?: "pool" | "post" | "suggestion";
+  linkedEntityType?: "place" | "pool" | "post" | "suggestion";
+  placeId?: string;
+}
+
+/* ── Place data model ────────────────────────────────────────────────────── */
+
+export type PlaceSource =
+  | "mock"             // hardcoded dev data
+  | "manual"           // user-added pin
+  | "osm"              // OpenStreetMap / Overpass API
+  | "zurich_open_data" // data.stadt-zuerich.ch
+  | "suggestion";      // came from a Discover suggestion
+
+export type PlaceCategory =
+  | "cafe"
+  | "library"
+  | "park"
+  | "bar"
+  | "sports"
+  | "restaurant"
+  | "museum"
+  | "viewpoint"
+  | "study_spot"
+  | "event_venue"
+  | "public_space"
+  | "other";
+
+// Freeform social tags users apply to places
+export type PlaceTag =
+  | "good_for_groups"
+  | "quiet_after_6pm"
+  | "cheap_drinks"
+  | "good_study_spot"
+  | "student_friendly"
+  | "outdoor_seating"
+  | "open_late"
+  | "great_views"
+  | "laptop_friendly"
+  | "good_wifi";
+
+/**
+ * Core place — raw location data only, no social layer.
+ * This is what external sources (OSM, Zürich Open Data) will return once integrated.
+ */
+export interface Place {
+  id: string;
+  source: PlaceSource;
+  externalId?: string;      // OSM node/way ID, open data record ID, etc.
+  name: string;
+  category: PlaceCategory;
+  description?: string;
+  city: string;
+  area?: string;
+  address?: string;
+  lat: number;
+  lng: number;
+  openingHours?: string;
+  website?: string;
+  cuisine?: string; 
+}
+
+/**
+ * DiscoverPlace — a Place enriched with social/app-layer data.
+ * This is what the Discover UI renders.
+ */
+export interface DiscoverPlace extends Place {
+  tags: PlaceTag[];
+  linkedPoolIds: string[];
+  linkedPostIds: string[];
+  suggestedByGroupIds: string[];
+  favoriteCount: number;
+  commentCount: number;
+}
+
+/**
+ * FavoritePlace — a user saving a place.
+ */
+export interface FavoritePlace {
+  id: string;
+  userId: string;
+  placeId: string;
+  savedAt: string;
+}
+
+/**
+ * PlaceComment — short freeform note a user leaves on a place.
+ * e.g. "ETH students go here", "quiet on weekday mornings"
+ */
+export interface PlaceComment {
+  id: string;
+  placeId: string;
+  authorId: string;
+  body: string;
+  createdAt: string;
+}
+
+/**
+ * PlaceReview — structured rating + tags + optional text.
+ */
+export interface PlaceReview {
+  id: string;
+  placeId: string;
+  authorId: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  tags: PlaceTag[];
+  body?: string;
+  createdAt: string;
 }

@@ -16,6 +16,7 @@ import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound.tsx";
 import PoolDetail from "./pages/PoolDetail";
 import Discover from "./pages/Discover";
+import PlaceDetail from "./pages/PlaceDetail";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/pools/:poolId" element={<PoolDetail />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/discover" element={<Discover />} />
+            <Route path="/places/:placeId" element={<PlaceDetail />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
