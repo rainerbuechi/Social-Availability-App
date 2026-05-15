@@ -53,10 +53,37 @@ function toDateParam(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function toDateKey(date: Date) {
+  return toDateParam(date);
+}
+
+function formatDayLabel(date: Date) {
+  const today = startOfToday();
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  if (isSameCalendarDay(date, today)) {
+    return "Today";
+  }
+
+  if (isSameCalendarDay(date, tomorrow)) {
+    return "Tomorrow";
+  }
+
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default function Feed() {
   const [posts, setPosts] = useState<AvailabilityPost[]>([]);
   const [view, setView] = useState<FeedView>("activity");
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(startOfToday());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    startOfToday(),
+  );
 
   const today = useMemo(() => startOfToday(), []);
 
@@ -69,8 +96,41 @@ export default function Feed() {
   }, [refresh]);
 
   const futurePosts = useMemo(() => {
-    return posts.filter((post) => new Date(post.startTime) >= today);
+    return posts
+      .filter((post) => new Date(post.startTime) >= today)
+      .sort(
+        (a, b) =>
+          new Date(a.startTime).getTime() - new Date(b.startTime).getTime(),
+      );
   }, [posts, today]);
+
+  const groupedFuturePosts = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        date: Date;
+        posts: AvailabilityPost[];
+      }
+    >();
+
+    futurePosts.forEach((post) => {
+      const date = new Date(post.startTime);
+      date.setHours(0, 0, 0, 0);
+
+      const key = toDateKey(date);
+
+      if (!groups.has(key)) {
+        groups.set(key, {
+          date,
+          posts: [],
+        });
+      }
+
+      groups.get(key)?.posts.push(post);
+    });
+
+    return Array.from(groups.values());
+  }, [futurePosts]);
 
   const postsForDate = useMemo(() => {
     if (!selectedDate) return [];
@@ -99,17 +159,31 @@ export default function Feed() {
     : "/create";
 
   return (
-    <div className="min-h-full overflow-x-hidden">
-      <header className="safe-top sticky top-0 z-30 border-b border-border bg-background/90 px-4 py-4 backdrop-blur">
-        <div className="relative flex items-center justify-between gap-2">
-          <div className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-muted p-0.5">
+    <div className="min-h-full overflow-x-hidden bg-muted/20">
+      <header className="safe-top sticky top-0 z-30 border-b border-border/70 bg-background/95 px-4 py-4 shadow-sm backdrop-blur">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl font-extrabold tracking-tight">
+            Down<span className="text-[#DA2C43]">?</span>
+          </h1>
+
+          <Link
+            to="/create"
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-[#DA2C43] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#c9273c]"
+          >
+            <Plus className="h-4 w-4" />
+            Post
+          </Link>
+        </div>
+
+        <div className="mt-4 flex justify-center">
+          <div className="flex items-center gap-2 rounded-full bg-secondary/80 p-1">
             <button
               type="button"
               onClick={() => setView("activity")}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`rounded-full px-7 py-2.5 text-sm font-semibold transition-all ${
                 view === "activity"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-[#DA2C43] text-white shadow-sm"
+                  : "text-muted-foreground hover:bg-primary-soft hover:text-primary"
               }`}
             >
               Activity
@@ -118,57 +192,48 @@ export default function Feed() {
             <button
               type="button"
               onClick={() => setView("calendar")}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`rounded-full px-7 py-2.5 text-sm font-semibold transition-all ${
                 view === "calendar"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  ? "bg-[#DA2C43] text-white shadow-sm"
+                  : "text-muted-foreground hover:bg-primary-soft hover:text-primary"
               }`}
             >
               Calendar
             </button>
           </div>
-
-          <h1 className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-xl font-bold tracking-tight">
-            Down<span className="text-primary">?</span>
-          </h1>
-
-          <Link
-            to="/create"
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-primary px-3 text-sm font-medium text-primary-foreground"
-          >
-            <Plus className="h-4 w-4" />
-            Post
-          </Link>
         </div>
-
-        <p className="mt-1 text-xs text-muted-foreground">
-          {view === "activity"
-            ? `${posts.length} friends sharing`
-            : selectedDate
-              ? `${postsForDate.length} posts on ${selectedDate.toLocaleDateString("en-US", {
-                  day: "numeric",
-                  month: "long",
-                })}`
-              : "Pick a date"}
-        </p>
       </header>
 
       {view === "activity" && (
-        <div className="space-y-3 p-4">
-          {posts.length === 0 ? (
+        <div className="space-y-7 p-4 pb-24">
+          {futurePosts.length === 0 ? (
             <div className="py-20 text-center text-muted-foreground">
               No one's down yet. Be the first 👀
             </div>
           ) : (
-            posts.map((post) => (
-              <PostCard key={post.id} post={post} onDeleted={refresh} />
+            groupedFuturePosts.map((group) => (
+              <section key={toDateKey(group.date)} className="space-y-3">
+                <div className="flex items-center gap-3 px-1">
+                  <div className="h-px flex-1 bg-[#DA2C43]/25" />
+                  <div className="whitespace-nowrap rounded-full bg-[#DA2C43]/10 px-3 py-1 text-sm font-bold text-[#DA2C43]">
+                    {formatDayLabel(group.date)}
+                  </div>
+                  <div className="h-px flex-1 bg-[#DA2C43]/25" />
+                </div>
+
+                <div className="space-y-3">
+                  {group.posts.map((post) => (
+                    <PostCard key={post.id} post={post} onDeleted={refresh} />
+                  ))}
+                </div>
+              </section>
             ))
           )}
         </div>
       )}
 
       {view === "calendar" && (
-        <div className="w-full overflow-x-hidden p-4">
+        <div className="w-full overflow-x-hidden p-4 pb-24">
           <div className="mx-auto w-full max-w-sm rounded-3xl border border-border bg-card p-3 shadow-sm">
             <Calendar
               mode="single"
@@ -205,18 +270,21 @@ export default function Feed() {
                   "flex h-8 items-center justify-center text-[0.7rem] font-medium text-muted-foreground",
                 row: "grid grid-cols-7",
                 cell: "relative flex h-11 items-center justify-center text-center text-sm",
-                day: "relative flex h-10 w-10 items-center justify-center rounded-2xl text-sm transition-colors hover:bg-muted",
+                day: "relative flex h-10 w-10 items-center justify-center rounded-2xl text-sm transition-colors hover:bg-primary-soft hover:text-primary",
                 day_selected:
-                  "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-                day_today: "border border-primary/50 font-semibold",
+                  "bg-[#DA2C43] text-white hover:bg-[#DA2C43] hover:text-white focus:bg-[#DA2C43] focus:text-white",
+                day_today: "border border-[#DA2C43]/50 font-semibold text-[#DA2C43]",
                 day_disabled: "text-muted-foreground/30 opacity-40",
                 day_outside: "text-muted-foreground/30 opacity-40",
               }}
               components={{
                 DayContent: ({ date }) => {
-                  const postsOnDay = postsByDateKey.get(date.toDateString()) ?? [];
+                  const postsOnDay =
+                    postsByDateKey.get(date.toDateString()) ?? [];
                   const dotColors = Array.from(
-                    new Set(postsOnDay.map((post) => colorForAuthor(post.authorId))),
+                    new Set(
+                      postsOnDay.map((post) => colorForAuthor(post.authorId)),
+                    ),
                   ).slice(0, 4);
 
                   return (
@@ -247,12 +315,12 @@ export default function Feed() {
                 Pick a date to see posts
               </p>
             ) : postsForDate.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-border p-6 text-center text-muted-foreground">
+              <div className="rounded-3xl border border-dashed border-[#DA2C43]/30 bg-card p-6 text-center text-muted-foreground">
                 <p>No posts on this day.</p>
 
                 <Link
                   to={createUrl}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#DA2C43] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#c9273c]"
                 >
                   <Plus className="h-4 w-4" />
                   Create one

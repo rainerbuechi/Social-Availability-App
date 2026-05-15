@@ -13,7 +13,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { STATUS_META, STATUS_ORDER } from "@/lib/status";
 import { FriendGroup, LocationPrecision, StatusType } from "@/lib/types";
-import { createPost, updatePost, getPost, listGroups } from "@/lib/api";
+import { createPost, getPost, listGroups, updatePost } from "@/lib/api";
+
+const RED_ACCENT = "#DA2C43";
 
 const pad = (n: number) => n.toString().padStart(2, "0");
 const toLocalTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -22,14 +24,6 @@ function startOfToday() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return today;
-}
-
-function toDateInputValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
 }
 
 function parseDateParam(dateParam: string | null) {
@@ -97,7 +91,9 @@ export default function CreateStatus() {
 
   const [status, setStatus] = useState<StatusType>("free");
   const [message, setMessage] = useState("");
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(initialDate);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    initialDate,
+  );
   const [start, setStart] = useState(toLocalTime(initialStartDate));
   const [end, setEnd] = useState(toLocalTime(initialEndDate));
   const [locationName, setLocationName] = useState("");
@@ -204,29 +200,31 @@ export default function CreateStatus() {
   if (!loaded) return null;
 
   return (
-    <div className="min-h-full overflow-x-hidden">
-      <header className="safe-top sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background/90 px-4 py-3 backdrop-blur">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted"
-          aria-label="Back"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
+    <div className="min-h-full overflow-x-hidden bg-muted/20">
+      <header className="safe-top sticky top-0 z-30 border-b border-border/70 bg-background/95 px-4 py-4 shadow-sm backdrop-blur">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-primary-soft hover:text-primary"
+            aria-label="Back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
 
-        <div>
-          <h1 className="text-lg font-semibold">
-            {editId ? "Edit availability" : "Share availability"}
-          </h1>
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-extrabold tracking-tight">
+              {editId ? "Edit availability" : "Share availability"}
+            </h1>
 
-          <p className="text-xs text-muted-foreground">
-            {selectedDate ? formatDateLabel(selectedDate) : "Choose a date"}
-          </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {selectedDate ? formatDateLabel(selectedDate) : "Choose a date"}
+            </p>
+          </div>
         </div>
       </header>
 
-      <form onSubmit={onSubmit} className="space-y-6 p-4">
+      <form onSubmit={onSubmit} className="space-y-6 p-4 pb-24">
         <section>
           <Label className="mb-2 block">Status</Label>
 
@@ -241,14 +239,14 @@ export default function CreateStatus() {
                   type="button"
                   onClick={() => setStatus(s)}
                   className={cn(
-                    "flex flex-col items-center gap-1 rounded-xl border-2 p-3 text-sm transition",
+                    "flex flex-col items-center gap-1 rounded-2xl border-2 p-3 text-sm shadow-sm transition-colors",
                     active
-                      ? "border-primary bg-primary-soft text-foreground"
-                      : "border-border bg-card text-muted-foreground hover:border-foreground/20",
+                      ? "border-[#DA2C43] bg-[#DA2C43]/10 text-foreground"
+                      : "border-border bg-card text-muted-foreground hover:border-primary/35 hover:bg-primary-soft/70 hover:text-foreground",
                   )}
                 >
                   <span className="text-xl">{meta.emoji}</span>
-                  <span className="font-medium">{meta.label}</span>
+                  <span className="font-semibold">{meta.label}</span>
                 </button>
               );
             })}
@@ -264,7 +262,7 @@ export default function CreateStatus() {
             onChange={(e) => setMessage(e.target.value)}
             placeholder="What's the vibe?"
             maxLength={140}
-            className="resize-none"
+            className="resize-none rounded-2xl border-border bg-card focus-visible:ring-[#DA2C43]"
             rows={2}
           />
         </section>
@@ -299,7 +297,7 @@ export default function CreateStatus() {
                 caption_label: "text-sm font-semibold",
                 nav: "flex items-center gap-1",
                 nav_button:
-                  "h-8 w-8 rounded-full border border-border bg-background p-0 opacity-80 hover:opacity-100",
+                  "h-8 w-8 rounded-full border border-border bg-background p-0 opacity-80 hover:bg-primary-soft hover:text-primary hover:opacity-100",
                 nav_button_previous: "absolute left-1",
                 nav_button_next: "absolute right-1",
                 table: "w-full border-collapse space-y-1",
@@ -308,10 +306,10 @@ export default function CreateStatus() {
                   "flex h-8 items-center justify-center text-[0.7rem] font-medium text-muted-foreground",
                 row: "grid grid-cols-7",
                 cell: "relative flex h-11 items-center justify-center text-center text-sm",
-                day: "relative flex h-10 w-10 items-center justify-center rounded-2xl text-sm transition-colors hover:bg-muted",
+                day: "relative flex h-10 w-10 items-center justify-center rounded-2xl text-sm transition-colors hover:bg-primary-soft hover:text-primary",
                 day_selected:
-                  "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-                day_today: "border border-primary/50 font-semibold",
+                  "bg-[#DA2C43] text-white hover:bg-[#DA2C43] hover:text-white focus:bg-[#DA2C43] focus:text-white",
+                day_today: "border border-[#DA2C43]/50 font-semibold text-[#DA2C43]",
                 day_disabled: "text-muted-foreground/30 opacity-40",
                 day_outside: "text-muted-foreground/30 opacity-40",
               }}
@@ -334,6 +332,7 @@ export default function CreateStatus() {
               type="time"
               value={start}
               onChange={(e) => setStart(e.target.value)}
+              className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
             />
           </div>
 
@@ -345,6 +344,7 @@ export default function CreateStatus() {
               type="time"
               value={end}
               onChange={(e) => setEnd(e.target.value)}
+              className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
             />
           </div>
         </section>
@@ -357,6 +357,7 @@ export default function CreateStatus() {
             value={locationName}
             onChange={(e) => setLocationName(e.target.value)}
             placeholder="e.g. Blue Bottle, Mission"
+            className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
           />
         </section>
 
@@ -373,13 +374,13 @@ export default function CreateStatus() {
                   type="button"
                   onClick={() => setGroupId(group.id)}
                   className={cn(
-                    "flex w-full items-center justify-between rounded-xl border-2 p-3 text-left transition",
+                    "flex w-full items-center justify-between rounded-2xl border-2 p-3 text-left shadow-sm transition-colors",
                     active
-                      ? "border-primary bg-primary-soft"
-                      : "border-border bg-card",
+                      ? "border-[#DA2C43] bg-[#DA2C43]/10"
+                      : "border-border bg-card hover:border-primary/35 hover:bg-primary-soft/70",
                   )}
                 >
-                  <span className="flex items-center gap-2 text-sm font-medium">
+                  <span className="flex items-center gap-2 text-sm font-semibold">
                     <span className="text-lg">{group.emoji}</span>
                     {group.name}
                   </span>
@@ -393,7 +394,10 @@ export default function CreateStatus() {
           </div>
         </section>
 
-        <Button type="submit" className="h-12 w-full rounded-full text-base">
+        <Button
+          type="submit"
+          className="h-12 w-full rounded-full bg-[#DA2C43] text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#c9273c]"
+        >
           {editId ? "Save changes" : "I'm down"}
         </Button>
       </form>

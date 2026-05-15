@@ -4,78 +4,92 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 8%;
+    /* Modern blue-tinted app background */
+    --background: 210 30% 90%;
+    --foreground: 218 38% 13%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 8%;
+    /* Clean cards */
+    --card: 210 35% 98%;
+    --card-foreground: 218 38% 13%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 8%;
+    /* Popovers */
+    --popover: 210 35% 98%;
+    --popover-foreground: 218 38% 13%;
 
-    /* Down? brand: warm coral */
-    --primary: 12 88% 60%;
+    /* Main brand: modern blue */
+    --primary: 211 72% 44%;
     --primary-foreground: 0 0% 100%;
-    --primary-soft: 12 100% 96%;
+    --primary-soft: 211 75% 92%;
 
-    --secondary: 240 5% 96%;
-    --secondary-foreground: 240 10% 12%;
+    /* Secondary surfaces */
+    --secondary: 210 25% 86%;
+    --secondary-foreground: 218 35% 18%;
 
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 5% 45%;
+    --muted: 210 24% 87%;
+    --muted-foreground: 216 14% 38%;
 
-    --accent: 240 5% 96%;
-    --accent-foreground: 240 10% 12%;
+    /* Warm red accent */
+    --accent: 352 62% 54%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 352 67% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 6% 92%;
-    --input: 240 6% 92%;
-    --ring: 12 88% 60%;
+    --border: 211 20% 78%;
+    --input: 211 20% 78%;
+    --ring: 211 72% 44%;
 
     --radius: 1rem;
 
-    /* Status type colors */
-    --status-free: 142 71% 45%;
-    --status-studying: 217 91% 60%;
-    --status-lunch: 35 92% 55%;
-    --status-coffee: 25 60% 45%;
-    --status-party: 280 80% 60%;
-    --status-gym: 0 75% 55%;
-    --status-busy: 240 5% 50%;
+    /* Status colors */
+    --status-free: 148 58% 42%;
+    --status-studying: 211 72% 44%;
+    --status-lunch: 36 86% 52%;
+    --status-coffee: 27 46% 42%;
+    --status-party: 278 62% 54%;
+    --status-gym: 352 62% 54%;
+    --status-busy: 216 12% 45%;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar */
+    --sidebar-background: 210 30% 90%;
+    --sidebar-foreground: 218 38% 13%;
+    --sidebar-primary: 211 72% 44%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 25% 86%;
+    --sidebar-accent-foreground: 218 35% 18%;
+    --sidebar-border: 211 20% 78%;
+    --sidebar-ring: 211 72% 44%;
   }
 
   .dark {
-    --background: 240 10% 6%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 12 88% 60%;
-    --primary-foreground: 0 0% 100%;
-    --primary-soft: 12 40% 18%;
-    --secondary: 240 6% 14%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 6% 14%;
-    --muted-foreground: 240 5% 65%;
-    --accent: 240 6% 14%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 45%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 6% 16%;
-    --input: 240 6% 16%;
-    --ring: 12 88% 60%;
+    --background: 218 40% 10%;
+    --foreground: 210 30% 94%;
+
+    --card: 218 34% 14%;
+    --card-foreground: 210 30% 94%;
+
+    --popover: 218 34% 14%;
+    --popover-foreground: 210 30% 94%;
+
+    --primary: 211 75% 62%;
+    --primary-foreground: 218 40% 10%;
+    --primary-soft: 211 45% 20%;
+
+    --secondary: 218 25% 18%;
+    --secondary-foreground: 210 30% 94%;
+
+    --muted: 218 25% 18%;
+    --muted-foreground: 210 18% 68%;
+
+    --accent: 352 62% 58%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 352 67% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 218 22% 24%;
+    --input: 218 22% 24%;
+    --ring: 211 75% 62%;
   }
 }
 
@@ -83,12 +97,21 @@
   * {
     @apply border-border;
   }
-  html, body, #root {
+
+  html,
+  body,
+  #root {
     @apply h-full;
   }
+
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    font-family:
+      -apple-system,
+      BlinkMacSystemFont,
+      "Inter",
+      "Segoe UI",
+      sans-serif;
   }
 }
 
@@ -96,6 +119,7 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+
   .safe-top {
     padding-top: env(safe-area-inset-top);
   }
