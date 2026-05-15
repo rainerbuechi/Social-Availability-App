@@ -12,19 +12,11 @@ import {
   Waves,
 } from "lucide-react";
 import {
-  getGroup,
-  listGroupMembers,
-  listPostsByGroup,
-  getRecentMessagesForGroup,
-  getUser,
-  createPool,
-  deletePool,
-  joinPool,
-  leavePool,
-  isInPool,
-  listPoolsByGroup,
-  getCurrentUser,
-  listGroupSuggestions,
+  getGroup, listGroupMembers, listPostsByGroup,
+  getRecentMessagesForGroup, getUser,
+  createPool, deletePool, joinPool, leavePool,
+  isInPool, listPoolsByGroup, getCurrentUser,
+  listGroupSuggestions, voteOnSuggestion, deleteSuggestion,
 } from "@/lib/api";
 import {
   AvailabilityPost,
@@ -449,19 +441,53 @@ export default function GroupDetail() {
           </p>
 
           <div className="space-y-2">
-            {suggestions.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-start justify-between gap-2 rounded-3xl border border-border bg-card px-3 py-2.5 shadow-sm"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{s.cardTitle}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {s.cardArea} · {s.cardType}
-                  </p>
+            {suggestions.map((s) => {
+              const ups = Object.values(s.votes ?? {}).filter((v) => v === "up").length;
+              const downs = Object.values(s.votes ?? {}).filter((v) => v === "down").length;
+              const myVote = s.votes?.[me?.id ?? ""];
+              const isOwn = s.fromUserId === me?.id;
+              return (
+                <div key={s.id} className="rounded-2xl border border-border bg-card p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm leading-snug">{s.cardTitle}</p>
+                      <p className="text-xs text-muted-foreground">{s.cardArea} · {s.cardType}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={async () => { await voteOnSuggestion(s.id, "up"); refresh(); }}
+                        className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                          myVote === "up"
+                            ? "bg-green-500 text-white border-green-500"
+                            : "border-border text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        ✓{ups > 0 && <span>{ups}</span>}
+                      </button>
+                      <button
+                        onClick={async () => { await voteOnSuggestion(s.id, "down"); refresh(); }}
+                        className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                          myVote === "down"
+                            ? "bg-red-500 text-white border-red-500"
+                            : "border-border text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        ✕{downs > 0 && <span>{downs}</span>}
+                      </button>
+                      {isOwn && (
+                        <button
+                          onClick={async () => { await deleteSuggestion(s.id); refresh(); }}
+                          className="text-muted-foreground hover:text-destructive transition-colors"
+                          title="Remove suggestion"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

@@ -232,14 +232,16 @@ export async function removeUserFromAllGroups(userId: string): Promise<void> {
 /* ── Posts ────────────────────────────────────────── */
 
 export async function listFeed(): Promise<AvailabilityPost[]> {
-  return [..._posts].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  );
+  const now = new Date().toISOString();
+  return [..._posts]
+    .filter((p) => p.endTime > now)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 export async function listPostsByGroup(groupId: string): Promise<AvailabilityPost[]> {
+  const now = new Date().toISOString();
   return _posts
-    .filter((p) => p.visibleToGroupId === groupId)
+    .filter((p) => p.visibleToGroupId === groupId && p.endTime > now)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
@@ -451,7 +453,10 @@ export async function getParticipantCount(postId: string): Promise<number> {
 /* ── Waiting Pools ───────────────────────────────── */
 
 export async function listPools(): Promise<WaitingPool[]> {
-  return [..._pools].sort(
+  const today = new Date().toISOString().split("T")[0];
+  return [..._pools]
+    .filter((p) => p.date >= today)
+    .sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
   );
 }
@@ -554,8 +559,9 @@ export async function listPoolMembers(poolId: string): Promise<User[]> {
 }
 
 export async function listPoolsByGroup(groupId: string): Promise<WaitingPool[]> {
+  const today = new Date().toISOString().split("T")[0];
   return _pools
-    .filter((p) => p.visibleToGroupId === groupId)
+    .filter((p) => p.visibleToGroupId === groupId && p.date >= today)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
@@ -609,7 +615,28 @@ export async function suggestToGroup(
 }
 
 export async function listGroupSuggestions(groupId: string): Promise<GroupSuggestion[]> {
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
   return _suggestions
-    .filter((s) => s.groupId === groupId)
+    .filter((s) => s.groupId === groupId && new Date(s.createdAt).getTime() > cutoff)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export async function voteOnSuggestion(suggestionId: string, vote: "up" | "down"): Promise<void> {
+  const me = _getMe();
+  if (!me) return;
+  const idx = _suggestions.findIndex((s) => s.id === suggestionId);
+  if (idx === -1) return;
+  const votes = { ...(_suggestions[idx].votes ?? {}) };
+  if (votes[me.id] === vote) {
+    delete votes[me.id]; // tapping same button again removes the vote
+  } else {
+    votes[me.id] = vote;
+  }
+  _suggestions[idx] = { ..._suggestions[idx], votes };
+  saveJson(SUGGESTIONS_KEY, _suggestions);
+}
+
+export async function deleteSuggestion(suggestionId: string): Promise<void> {
+  _suggestions = _suggestions.filter((s) => s.id !== suggestionId);
+  saveJson(SUGGESTIONS_KEY, _suggestions);
 }

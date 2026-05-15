@@ -382,3 +382,23 @@ export function addReview(
   save(REVIEWS_KEY, _reviews);
   return review;
 }
+
+export function updateReview(
+  id: string,
+  authorId: string,
+  patch: Partial<Pick<PlaceReview, "rating" | "body">>,
+): PlaceReview | undefined {
+  const idx = _reviews.findIndex((r) => r.id === id && r.authorId === authorId);
+  if (idx === -1) return undefined;
+  _reviews[idx] = { ..._reviews[idx], ...patch };
+  save(REVIEWS_KEY, _reviews);
+  return _reviews[idx];
+}
+
+export function deleteReview(id: string, authorId: string): boolean {
+  const idx = _reviews.findIndex((r) => r.id === id && r.authorId === authorId);
+  if (idx === -1) return false;
+  _reviews.splice(idx, 1);
+  save(REVIEWS_KEY, _reviews);
+  return true;
+}

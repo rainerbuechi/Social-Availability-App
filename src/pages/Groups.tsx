@@ -10,6 +10,7 @@ import {
   groupHasPosts,
   getLatestChatMessage,
   listAcceptedFriends,
+  getCurrentUser,
 } from "@/lib/api";
 import { FriendGroup, User, ChatMessage } from "@/lib/types";
 import { toast } from "sonner";
@@ -50,17 +51,20 @@ export default function Groups() {
 
   const [deleteTarget, setDeleteTarget] = useState<FriendGroup | null>(null);
   const [deleteHasPosts, setDeleteHasPosts] = useState(false);
+  const [meId, setMeId] = useState("");
 
   const refresh = async () => {
-    const [gs, us, fr] = await Promise.all([
+    const [gs, us, fr, me] = await Promise.all([
       listGroups(),
       listUsers(),
       listAcceptedFriends(),
+      getCurrentUser(),
     ]);
 
     setGroups(gs);
     setUsers(us);
     setFriends(fr);
+    if (me) setMeId(me.id);
 
     const msgs: Record<string, ChatMessage> = {};
 
@@ -77,13 +81,13 @@ export default function Groups() {
   }, []);
 
   const userById = (id: string) => users.find((u) => u.id === id);
-  const availableMembers = friends;
+  const availableMembers = friends.filter((f) => f.id !== meId);
 
   const openCreate = () => {
     setEditingGroup(null);
     setFormName("");
     setFormEmoji("");
-    setFormMembers([]);
+    setFormMembers(meId ? [meId] : []);
     setDialogOpen(true);
   };
 
@@ -96,6 +100,7 @@ export default function Groups() {
   };
 
   const toggleMember = (id: string) => {
+    if (id === meId) return;
     setFormMembers((prev) =>
       prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id],
     );
@@ -112,18 +117,24 @@ export default function Groups() {
       return;
     }
 
+    // Always ensure creator is included
+    const members =
+      meId && !formMembers.includes(meId)
+        ? [meId, ...formMembers]
+        : formMembers;
+
     if (editingGroup) {
       await updateGroup(editingGroup.id, {
         name: formName.trim(),
         emoji: formEmoji.trim(),
-        memberIds: formMembers,
+        memberIds: members,
       });
       toast.success("Group updated");
     } else {
       await createGroup({
         name: formName.trim(),
         emoji: formEmoji.trim(),
-        memberIds: formMembers,
+        memberIds: members,
       });
       toast.success("Group created");
     }
@@ -361,6 +372,19 @@ export default function Groups() {
               <Label>Members</Label>
 
               <div className="max-h-40 space-y-1 overflow-y-auto">
+                {/* Locked "You" row — always included */}
+                {meId && (
+                  <div className="flex w-full cursor-not-allowed items-center gap-2 rounded-2xl bg-[#DA2C43]/10 px-3 py-2 text-sm opacity-80">
+                    <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 border-[#DA2C43] bg-[#DA2C43]">
+                      <span className="text-[10px] text-white">✓</span>
+                    </div>
+                    <span className="text-foreground">You</span>
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      always included
+                    </span>
+                  </div>
+                )}
+
                 {availableMembers.length === 0 ? (
                   <p className="rounded-2xl bg-muted/60 px-3 py-3 text-sm text-muted-foreground">
                     No accepted friends yet.

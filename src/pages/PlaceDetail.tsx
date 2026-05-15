@@ -3,7 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Clock, Globe, Heart, Star, Utensils, Pencil, Check, X, Trash2 } from "lucide-react";
 import {
   getPlace, getComments, getReviews,
-  addComment, addReview, toggleFavorite, isFavorite,
+  addComment, addReview, updateReview, deleteReview,
+  toggleFavorite, isFavorite,
   deleteCustomPlace, updateCustomPlace,
 } from "@/lib/places";
 import { getCurrentUser } from "@/lib/api";
@@ -66,6 +67,9 @@ export default function PlaceDetail() {
   const [selectedTags, setSelectedTags] = useState<PlaceTag[]>([]);
   const [reviewBody, setReviewBody] = useState("");
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+  const [editRating, setEditRating] = useState(0);
+  const [editReviewBody, setEditReviewBody] = useState("");
 
   // Comment form
   const [commentBody, setCommentBody] = useState("");
@@ -329,27 +333,55 @@ export default function PlaceDetail() {
                 <p className="text-sm text-muted-foreground">No reviews yet — be the first!</p>
               ) : (
                 <div className="space-y-2">
-                  {reviews.map((r) => (
-                    <div key={r.id} className="rounded-xl border border-border bg-card p-3 space-y-1.5">
-                      <div className="flex items-center gap-1">
-                        {[1,2,3,4,5].map((n) => (
-                          <Star key={n} className="h-3.5 w-3.5"
-                            fill={n <= r.rating ? "#f59e0b" : "none"}
-                            stroke={n <= r.rating ? "#f59e0b" : "#d1d5db"} />
-                        ))}
+                  {reviews.map((r) => {
+                    const isOwn = r.authorId === meId;
+                    const isEditing = editingReviewId === r.id;
+                    return (
+                      <div key={r.id} className="rounded-xl border border-border bg-background p-3 space-y-1">
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <StarRating value={editRating} onChange={setEditRating} />
+                            <Input
+                              value={editReviewBody}
+                              onChange={(e) => setEditReviewBody(e.target.value)}
+                              placeholder="Update your review…"
+                            />
+                            <div className="flex gap-2">
+                              <Button size="sm" onClick={() => {
+                                updateReview(r.id, meId, { rating: editRating as PlaceReview["rating"], body: editReviewBody || undefined });
+                                setEditingReviewId(null);
+                                refresh();
+                              }}>Save</Button>
+                              <Button size="sm" variant="outline" onClick={() => setEditingReviewId(null)}>Cancel</Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <StarRating value={r.rating} onChange={() => {}} />
+                              {isOwn && (
+                                <div className="flex gap-2">
+                                  <button
+                                    className="text-xs text-muted-foreground hover:text-foreground"
+                                    onClick={() => { setEditingReviewId(r.id); setEditRating(r.rating); setEditReviewBody(r.body ?? ""); }}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    className="text-xs text-destructive hover:opacity-80"
+                                    onClick={() => { deleteReview(r.id, meId); refresh(); }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            {r.body && <p className="text-sm text-muted-foreground">{r.body}</p>}
+                          </>
+                        )}
                       </div>
-                      {r.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {r.tags.map((t) => (
-                            <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-                              {ALL_TAGS.find((tg) => tg.value === t)?.label ?? t}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {r.body && <p className="text-xs text-foreground">{r.body}</p>}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

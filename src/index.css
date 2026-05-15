@@ -90,6 +90,23 @@
     --border: 218 22% 24%;
     --input: 218 22% 24%;
     --ring: 211 75% 62%;
+
+    --status-free: 148 50% 38%;
+    --status-studying: 211 65% 52%;
+    --status-lunch: 36 80% 48%;
+    --status-coffee: 27 40% 38%;
+    --status-party: 278 55% 50%;
+    --status-gym: 352 55% 50%;
+    --status-busy: 216 10% 40%;
+
+    --sidebar-background: 218 40% 10%;
+    --sidebar-foreground: 210 30% 94%;
+    --sidebar-primary: 211 75% 62%;
+    --sidebar-primary-foreground: 218 40% 10%;
+    --sidebar-accent: 218 25% 18%;
+    --sidebar-accent-foreground: 210 30% 94%;
+    --sidebar-border: 218 22% 24%;
+    --sidebar-ring: 211 75% 62%;
   }
 }
 
@@ -121,6 +138,6 @@
   }
 
   .safe-top {
-    padding-top: env(safe-area-inset-top);
+    padding-top: max(env(safe-area-inset-top), 14px);
   }
 }

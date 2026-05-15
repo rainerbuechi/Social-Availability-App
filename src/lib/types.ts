@@ -123,6 +123,7 @@ export interface GroupSuggestion {
   cardArea: string;
   cardDescription: string;
   createdAt: string;
+  votes?: Record<string, "up" | "down">; // userId → vote
 }
 
 /* ── Map pin types ──────────────────────────────── */

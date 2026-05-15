@@ -21,11 +21,8 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import DiscoverMap, { PLACE_CATEGORY_CONFIG } from "@/components/DiscoverMap";
 import {
-  loadRegion,
-  invalidateRegionCache,
-  placeToMapPin,
-  getFavorites,
-  getAllCustomPlaces,
+  loadRegion, invalidateRegionCache, placeToMapPin,
+  getFavorites, getAllCustomPlaces, getReviews, getComments,
 } from "@/lib/places";
 
 type TimeSlot = "morning" | "afternoon" | "evening";
@@ -301,6 +298,13 @@ function scorePlaceFor(
   }
 
   score += Math.random() * 0.8;
+
+  // Star rating boost (synchronous localStorage read)
+  const reviews = getReviews(place.id);
+  if (reviews.length > 0) {
+    const avg = reviews.reduce((s, r) => s + r.rating, 0) / reviews.length;
+    score += avg * 1.5; // up to +7.5 for a 5-star place
+  }
 
   return score;
 }
@@ -867,11 +871,31 @@ export default function Discover() {
                           {place.name}
                         </p>
 
-                        {place.description && (
-                          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                            {place.description}
-                          </p>
-                        )}
+                        {(() => {
+                          const reviews = getReviews(place.id);
+                          const comments = getComments(place.id);
+                          const avgRating = reviews.length
+                            ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
+                            : null;
+                          const snippet = place.description
+                            || reviews.find((r) => r.body)?.body
+                            || comments[0]?.body;
+                          return (
+                            <>
+                              {avgRating !== null && (
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  {"★★★★★".split("").map((_, i) => (
+                                    <span key={i} className="text-xs" style={{ color: i < Math.round(avgRating!) ? "#f59e0b" : "#d1d5db" }}>★</span>
+                                  ))}
+                                  <span className="text-xs text-muted-foreground ml-0.5">{avgRating.toFixed(1)} ({reviews.length})</span>
+                                </div>
+                              )}
+                              {snippet && (
+                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{snippet}</p>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
