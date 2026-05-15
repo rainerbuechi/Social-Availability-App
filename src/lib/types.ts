@@ -1,3 +1,5 @@
+/* ── Status / Post types ─────────────────────────── */
+
 export type StatusType =
   | "free"
   | "studying"
@@ -32,7 +34,7 @@ export interface AvailabilityPost {
   status: StatusType;
   message?: string;
   startTime: string; // ISO
-  endTime: string; // ISO
+  endTime: string;   // ISO
   locationName?: string;
   locationPrecision: LocationPrecision;
   visibleToGroupId: string;
@@ -72,15 +74,15 @@ export interface PrivacySettings {
 export interface WaitingPool {
   id: string;
   authorId: string;
-  title: string;              // e.g. "Down for anything Saturday"
-  description?: string;       // optional vibe note
-  date: string;               // ISO date string (date only, e.g. "2025-05-10")
-  startTime?: string;         // optional ISO time
-  endTime?: string;           // optional ISO time
-  visibleToGroupId: string;   // reuses your existing group visibility
-  memberIds: string[];        // everyone who joined the pool
-  chatGroupId?: string;       // set once a group chat is created from this pool
-  minPeople: number;          // threshold to unlock chat (default 2)
+  title: string;
+  description?: string;
+  date: string;
+  startTime?: string;
+  endTime?: string;
+  visibleToGroupId: string;
+  memberIds: string[];
+  chatGroupId?: string;
+  minPeople: number;
   createdAt: string;
 }
 
@@ -91,13 +93,15 @@ export interface PoolMembership {
   joinedAt: string;
 }
 
+/* ── Activity / Discover types ───────────────────── */
+
 export type ActivityType = "study" | "coffee" | "lunch" | "walk" | "bar" | "event";
 
 export interface UserLocation {
   city: string;
   area?: string;
-  lat?: number;    // geocoded
-  lng?: number;    // geocoded
+  lat?: number;
+  lng?: number;
 }
 
 export interface DiscoverCard {
@@ -105,7 +109,7 @@ export interface DiscoverCard {
   title: string;
   type: ActivityType;
   area: string;
-  city: string;             // "any" means shows everywhere
+  city: string;
   description: string;
   timeOfDay: "morning" | "afternoon" | "evening" | "any";
 }
@@ -121,6 +125,8 @@ export interface GroupSuggestion {
   createdAt: string;
 }
 
+/* ── Map pin types ──────────────────────────────── */
+
 export type MapPinCategory = "place" | "suggestion" | "pool" | "post" | "meetup";
 
 export interface MapPin {
@@ -128,26 +134,26 @@ export interface MapPin {
   title: string;
   category: MapPinCategory;
   placeCategory?: PlaceCategory;
-  source?: string; 
+  source?: string;
   description?: string;
   city: string;
   area?: string;
   address?: string;
   lat: number;
   lng: number;
-  linkedEntityId?: string;   // poolId | postId | suggestionId
+  linkedEntityId?: string;
   linkedEntityType?: "place" | "pool" | "post" | "suggestion";
   placeId?: string;
 }
 
-/* ── Place data model ────────────────────────────────────────────────────── */
+/* ── Place data model ────────────────────────────── */
 
 export type PlaceSource =
-  | "mock"             // hardcoded dev data
-  | "manual"           // user-added pin
-  | "osm"              // OpenStreetMap / Overpass API
-  | "zurich_open_data" // data.stadt-zuerich.ch
-  | "suggestion";      // came from a Discover suggestion
+  | "mock"
+  | "manual"
+  | "osm"
+  | "zurich_open_data"
+  | "suggestion";
 
 export type PlaceCategory =
   | "cafe"
@@ -163,7 +169,6 @@ export type PlaceCategory =
   | "public_space"
   | "other";
 
-// Freeform social tags users apply to places
 export type PlaceTag =
   | "good_for_groups"
   | "quiet_after_6pm"
@@ -176,14 +181,10 @@ export type PlaceTag =
   | "laptop_friendly"
   | "good_wifi";
 
-/**
- * Core place — raw location data only, no social layer.
- * This is what external sources (OSM, Zürich Open Data) will return once integrated.
- */
 export interface Place {
   id: string;
   source: PlaceSource;
-  externalId?: string;      // OSM node/way ID, open data record ID, etc.
+  externalId?: string;
   name: string;
   category: PlaceCategory;
   description?: string;
@@ -194,13 +195,9 @@ export interface Place {
   lng: number;
   openingHours?: string;
   website?: string;
-  cuisine?: string; 
+  cuisine?: string;
 }
 
-/**
- * DiscoverPlace — a Place enriched with social/app-layer data.
- * This is what the Discover UI renders.
- */
 export interface DiscoverPlace extends Place {
   tags: PlaceTag[];
   linkedPoolIds: string[];
@@ -208,11 +205,16 @@ export interface DiscoverPlace extends Place {
   suggestedByGroupIds: string[];
   favoriteCount: number;
   commentCount: number;
+  /**
+   * true  → visible on public Discover feed + map for everyone.
+   * false → private; only the creator can see/use it.
+   * undefined → treated as private for safety.
+   */
+  isPublic?: boolean;
+  /** Creator's user id — for attribution and private-visibility checks. */
+  addedByUserId?: string;
 }
 
-/**
- * FavoritePlace — a user saving a place.
- */
 export interface FavoritePlace {
   id: string;
   userId: string;
@@ -220,10 +222,6 @@ export interface FavoritePlace {
   savedAt: string;
 }
 
-/**
- * PlaceComment — short freeform note a user leaves on a place.
- * e.g. "ETH students go here", "quiet on weekday mornings"
- */
 export interface PlaceComment {
   id: string;
   placeId: string;
@@ -232,9 +230,6 @@ export interface PlaceComment {
   createdAt: string;
 }
 
-/**
- * PlaceReview — structured rating + tags + optional text.
- */
 export interface PlaceReview {
   id: string;
   placeId: string;

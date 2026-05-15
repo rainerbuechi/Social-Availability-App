@@ -44,8 +44,18 @@ let _favorites: FavoritePlace[]    = load<FavoritePlace[]>(FAVORITES_KEY, []);
 let _comments: PlaceComment[]      = load<PlaceComment[]>(COMMENTS_KEY, []);
 let _reviews: PlaceReview[]        = load<PlaceReview[]>(REVIEWS_KEY, []);
 
-// Session cache for OSM places (avoids re-fetching on detail page)
+// Session cache for all fetched places (avoids re-fetching on detail page)
 const _placeCache = new Map<string, DiscoverPlace>();
+
+// OSM API response cache — keyed by rounded bbox, expires after TTL
+interface OsmCacheEntry { places: DiscoverPlace[]; fetchedAt: number }
+const _osmCache = new Map<string, OsmCacheEntry>();
+const OSM_CACHE_TTL_MS = 15 * 60 * 1000; // 15 min
+
+function bboxCacheKey(bbox: [number, number, number, number]): string {
+  // Round to 2 decimal places so nearby bboxes hit the same cache bucket
+  return bbox.map((n) => n.toFixed(2)).join(",");
+}
 
 /* ── Mock/curated places ─────────────────────────── */
 
@@ -58,53 +68,52 @@ export const mockPlaces: DiscoverPlace[] = [
     openingHours: "Mo-Fr 08:00-22:00, Sa 10:00-18:00",
     tags: ["good_study_spot", "laptop_friendly", "good_wifi", "open_late"],
     linkedPoolIds: [], linkedPostIds: [], suggestedByGroupIds: [],
-    favoriteCount: 0, commentCount: 0,
+    favoriteCount: 12, commentCount: 4, isPublic: true,
   },
   {
     id: "place_2", source: "mock", name: "Volkshaus Zürich",
     category: "cafe", city: "Zurich", area: "Langstrasse",
     address: "Stauffacherstrasse 60, 8004 Zürich", lat: 47.3762, lng: 8.5288,
     description: "Relaxed café + bar with good lunch options. Popular after-class spot.",
-    tags: ["good_for_groups", "student_friendly", "outdoor_seating"],
-    linkedPoolIds: [], linkedPostIds: [], suggestedByGroupIds: [],
-    favoriteCount: 0, commentCount: 0,
+    tags: [], linkedPoolIds: [], linkedPostIds: [], suggestedByGroupIds: [],
+    favoriteCount: 8, commentCount: 2, isPublic: true,
   },
   {
-    id: "place_3", source: "mock", name: "Lindenhügel",
-    category: "viewpoint", city: "Zurich", area: "Altstadt",
-    address: "Lindenhügel, 8001 Zürich", lat: 47.3728, lng: 8.5411,
-    description: "Classic Zurich meetup hill. Easy for everyone to find, great views.",
-    tags: ["good_for_groups", "great_views"],
-    linkedPoolIds: [], linkedPostIds: [], suggestedByGroupIds: [],
-    favoriteCount: 0, commentCount: 0,
-  },
-  {
-    id: "place_4", source: "mock", name: "Bürkliplatz",
-    category: "public_space", city: "Zurich", area: "City Center",
-    address: "Bürkliplatz, 8001 Zürich", lat: 47.3659, lng: 8.5432,
-    description: "Central lakeside square. Good start for walks or market days.",
-    tags: ["good_for_groups", "outdoor_seating", "great_views"],
-    linkedPoolIds: [], linkedPostIds: [], suggestedByGroupIds: [],
-    favoriteCount: 0, commentCount: 0,
-  },
-  {
-    id: "place_5", source: "mock", name: "Café Sprüngli",
-    category: "cafe", city: "Zurich", area: "Paradeplatz",
-    address: "Bahnhofstrasse 21, 8001 Zürich", lat: 47.3693, lng: 8.5387,
-    description: "Iconic Zurich café. Good for a coffee catch-up, busy on weekends.",
-    website: "https://www.spruengli.ch",
-    tags: ["student_friendly", "laptop_friendly"],
-    linkedPoolIds: [], linkedPostIds: [], suggestedByGroupIds: [],
-    favoriteCount: 0, commentCount: 0,
-  },
-  {
-    id: "place_6", source: "mock", name: "Zürichsee Promenade",
-    category: "park", city: "Zurich", area: "Seefeld",
-    address: "Utoquai, 8008 Zürich", lat: 47.3579, lng: 8.5490,
-    description: "Flat lakeside walk, great any time of day.",
+    id: "place_3", source: "mock", name: "Oberer Letten",
+    category: "public_space", city: "Zurich", area: "Gewerbeschule",
+    address: "Lettensteg, 8037 Zürich", lat: 47.3861, lng: 8.5299,
+    description: "Open-air river pool on the Limmat. Legendary summer hangout for locals.",
     tags: ["outdoor_seating", "good_for_groups", "great_views"],
     linkedPoolIds: [], linkedPostIds: [], suggestedByGroupIds: [],
-    favoriteCount: 0, commentCount: 0,
+    favoriteCount: 24, commentCount: 7, isPublic: true,
+  },
+  {
+    id: "place_4", source: "mock", name: "Café Sphères",
+    category: "cafe", city: "Zurich", area: "Langstrasse",
+    address: "Hardturmstrasse 66, 8005 Zürich", lat: 47.3876, lng: 8.5221,
+    description: "Bookshop-café hybrid. Quiet during mornings, buzzy evenings.",
+    openingHours: "Mo-Sa 09:00-23:30",
+    tags: ["good_study_spot", "laptop_friendly", "good_wifi", "open_late"],
+    linkedPoolIds: [], linkedPostIds: [], suggestedByGroupIds: [],
+    favoriteCount: 18, commentCount: 5, isPublic: true,
+  },
+  {
+    id: "place_5", source: "mock", name: "Lindenhügel Rapperswil",
+    category: "viewpoint", city: "Rapperswil", area: "Altstadt",
+    address: "Lindenhügel, 8640 Rapperswil", lat: 47.2265, lng: 8.8188,
+    description: "Hilltop view over Lake Zurich. Perfect for a walk or picnic.",
+    tags: ["great_views", "good_for_groups", "outdoor_seating"],
+    linkedPoolIds: [], linkedPostIds: [], suggestedByGroupIds: [],
+    favoriteCount: 10, commentCount: 3, isPublic: true,
+  },
+  {
+    id: "place_6", source: "mock", name: "Zürichsee Promenade Horgen",
+    category: "public_space", city: "Horgen", area: "Horgen",
+    address: "Seestrasse, 8810 Horgen", lat: 47.2576, lng: 8.5985,
+    description: "Quiet lakeside walk away from city crowds. Ideal for afternoon strolls.",
+    tags: ["outdoor_seating", "good_for_groups", "great_views"],
+    linkedPoolIds: [], linkedPostIds: [], suggestedByGroupIds: [],
+    favoriteCount: 6, commentCount: 1, isPublic: true,
   },
   {
     id: "place_7", source: "mock", name: "Longstreet Bar",
@@ -114,7 +123,7 @@ export const mockPlaces: DiscoverPlace[] = [
     openingHours: "Mo-Su 18:00-02:00",
     tags: ["cheap_drinks", "student_friendly", "good_for_groups", "open_late"],
     linkedPoolIds: [], linkedPostIds: [], suggestedByGroupIds: [],
-    favoriteCount: 0, commentCount: 0,
+    favoriteCount: 15, commentCount: 6, isPublic: true,
   },
   {
     id: "place_8", source: "mock", name: "Alpenquai",
@@ -123,11 +132,11 @@ export const mockPlaces: DiscoverPlace[] = [
     description: "Quiet lake spot away from crowds. Good for a casual hangout in summer.",
     tags: ["good_for_groups", "outdoor_seating", "great_views", "quiet_after_6pm"],
     linkedPoolIds: [], linkedPostIds: [], suggestedByGroupIds: [],
-    favoriteCount: 0, commentCount: 0,
+    favoriteCount: 9, commentCount: 2, isPublic: true,
   },
 ];
 
-// Seed cache with mock places
+// Seed detail cache with mock places
 mockPlaces.forEach((p) => _placeCache.set(p.id, p));
 
 /* ── Converters ──────────────────────────────────── */
@@ -141,6 +150,7 @@ function placeToDiscoverPlace(place: Place): DiscoverPlace {
     suggestedByGroupIds: [],
     favoriteCount: 0,
     commentCount: 0,
+    isPublic: false, // OSM places are not "user-public" — they're external data
   };
 }
 
@@ -165,13 +175,50 @@ export function placeToMapPin(place: DiscoverPlace): MapPin {
 
 /* ── Data fetching ───────────────────────────────── */
 
+/**
+ * Fetches places for a bounding box.
+ * - OSM results are cached per-bbox for OSM_CACHE_TTL_MS
+ * - Public custom/mock places always included
+ * - Private custom places only included if currentUserId matches addedByUserId
+ */
 export async function getPlacesForBounds(
   bbox: [number, number, number, number],
+  currentUserId?: string,
 ): Promise<DiscoverPlace[]> {
+  const [south, west, north, east] = bbox;
+
+  // ── Public custom places in bounds ──
+  const publicCustomInBounds = _customPlaces.filter(
+    (p) =>
+      p.isPublic === true &&
+      p.lat >= south && p.lat <= north &&
+      p.lng >= west && p.lng <= east,
+  );
+
+  // ── Private custom places for this user ──
+  const privateCustomInBounds = currentUserId
+    ? _customPlaces.filter(
+        (p) => !p.isPublic && p.addedByUserId === currentUserId,
+      )
+    : [];
+
+    // ── Mock places in bounds ──
+    const mockInBounds = mockPlaces.filter(
+      (p) => p.lat >= south && p.lat <= north && p.lng >= west && p.lng <= east,
+    );
+
+  // ── OSM places (cached) ──
+  const cacheKey = bboxCacheKey(bbox);
+  const cached = _osmCache.get(cacheKey);
+  const now = Date.now();
+
+  if (cached && now - cached.fetchedAt < OSM_CACHE_TTL_MS) {
+    return [...publicCustomInBounds, ...mockInBounds, ...privateCustomInBounds, ...cached.places];
+  }
+
   try {
     const osmRaw = await fetchPlacesFromOverpass(bbox, ACTIVE_CATEGORIES);
 
-    // Cap restaurants, unlimited for others
     let restCount = 0;
     const filtered = osmRaw.filter((p) => {
       if (p.category === "restaurant") return ++restCount <= RESTAURANT_CAP;
@@ -181,16 +228,12 @@ export async function getPlacesForBounds(
     const osmPlaces = filtered.map(placeToDiscoverPlace);
     osmPlaces.forEach((p) => _placeCache.set(p.id, p));
 
-    // Custom places within bbox
-    const [south, west, north, east] = bbox;
-    const customInBounds = _customPlaces.filter(
-      (p) => p.lat >= south && p.lat <= north && p.lng >= west && p.lng <= east,
-    );
+    _osmCache.set(cacheKey, { places: osmPlaces, fetchedAt: now });
 
-    return [...mockPlaces, ...customInBounds, ...osmPlaces];
+    return [...publicCustomInBounds, ...mockInBounds, ...privateCustomInBounds, ...osmPlaces];
   } catch (e) {
     console.warn("Overpass failed, using mock + custom:", e);
-    return [...mockPlaces, ..._customPlaces];
+    return [...publicCustomInBounds, ...mockInBounds, ...privateCustomInBounds];
   }
 }
 
@@ -207,11 +250,19 @@ export function getAllCustomPlaces(): DiscoverPlace[] {
   return [..._customPlaces];
 }
 
+export function getPublicCustomPlaces(): DiscoverPlace[] {
+  return _customPlaces.filter((p) => p.isPublic === true);
+}
+
 export function addCustomPlace(
-  input: Pick<DiscoverPlace, "name" | "category" | "description" | "area" | "address" | "lat" | "lng" | "city">,
+  input: Pick<DiscoverPlace, "name" | "category" | "description" | "area" | "address" | "lat" | "lng" | "city"> & {
+    isPublic?: boolean;
+    addedByUserId?: string;
+  },
 ): DiscoverPlace {
+  const { isPublic = false, addedByUserId, ...rest } = input;
   const place: DiscoverPlace = {
-    ...input,
+    ...rest,
     id: `custom_${Math.random().toString(36).slice(2, 9)}`,
     source: "manual",
     tags: [],
@@ -220,6 +271,8 @@ export function addCustomPlace(
     suggestedByGroupIds: [],
     favoriteCount: 0,
     commentCount: 0,
+    isPublic,
+    addedByUserId,
   };
   _customPlaces = [place, ..._customPlaces];
   save(CUSTOM_PLACES_KEY, _customPlaces);
@@ -238,7 +291,7 @@ export function deleteCustomPlace(id: string): boolean {
 
 export function updateCustomPlace(
   id: string,
-  input: Partial<Pick<DiscoverPlace, "name" | "category" | "description" | "area" | "address">>,
+  input: Partial<Pick<DiscoverPlace, "name" | "category" | "description" | "area" | "address" | "isPublic">>,
 ): DiscoverPlace | undefined {
   const idx = _customPlaces.findIndex((p) => p.id === id);
   if (idx === -1) return undefined;
@@ -253,20 +306,24 @@ export function updateCustomPlace(
 // Zurich → Rapperswil full region
 const REGION_BBOX: [number, number, number, number] = [47.18, 8.44, 47.44, 8.88];
 
-let _regionCache: DiscoverPlace[] | null = null;
+// Per-bbox region cache (separate from OSM cache — includes all layers)
+const _regionCache = new Map<string, DiscoverPlace[]>();
 
 export async function loadRegion(
   forceRefresh = false,
   bbox: [number, number, number, number] = REGION_BBOX,
+  currentUserId?: string,
 ): Promise<DiscoverPlace[]> {
-  if (_regionCache && !forceRefresh) return _regionCache;
-  const places = await getPlacesForBounds(bbox);
-  _regionCache = places;
+  const key = bboxCacheKey(bbox);
+  if (!forceRefresh && _regionCache.has(key)) return _regionCache.get(key)!;
+  const places = await getPlacesForBounds(bbox, currentUserId);
+  _regionCache.set(key, places);
   return places;
 }
 
 export function invalidateRegionCache(): void {
-  _regionCache = null;
+  _regionCache.clear();
+  _osmCache.clear();
 }
 
 /* ── Social layer ────────────────────────────────── */
