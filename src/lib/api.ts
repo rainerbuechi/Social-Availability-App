@@ -1000,16 +1000,113 @@ export async function getParticipantCount(postId: string): Promise<number> {
 
 /* ── Waiting Pools ───────────────────────────────── */
 
+type SupabasePoolRow = {
+  id: string;
+  author_id: string;
+  title: string;
+  description: string | null;
+  date: string;
+  start_time: string | null;
+  end_time: string | null;
+  visible_to_group_id: string | null;
+  min_people: number;
+  created_at: string;
+};
+
+type SupabasePoolMembershipRow = {
+  pool_id: string;
+  user_id: string;
+  joined_at: string;
+};
+
+function mapSupabasePool(
+  row: SupabasePoolRow,
+  memberIds: string[] = [],
+): WaitingPool {
+  return {
+    id: row.id,
+    authorId: row.author_id,
+    title: row.title,
+    description: row.description ?? undefined,
+    date: row.date,
+    startTime: row.start_time ?? undefined,
+    endTime: row.end_time ?? undefined,
+    visibleToGroupId: row.visible_to_group_id ?? "",
+    memberIds,
+    minPeople: row.min_people,
+    createdAt: row.created_at,
+  };
+}
+
+async function getPoolMemberIds(poolIds: string[]) {
+  const result = new Map<string, string[]>();
+
+  if (poolIds.length === 0) {
+    return result;
+  }
+
+  const { data, error } = await supabase
+    .from("pool_memberships")
+    .select("pool_id, user_id, joined_at")
+    .in("pool_id", poolIds);
+
+  if (error) {
+    console.error("Get pool members failed:", error);
+    return result;
+  }
+
+  for (const row of (data ?? []) as SupabasePoolMembershipRow[]) {
+    const current = result.get(row.pool_id) ?? [];
+    current.push(row.user_id);
+    result.set(row.pool_id, current);
+  }
+
+  return result;
+}
+
 export async function listPools(): Promise<WaitingPool[]> {
   const today = new Date().toISOString().split("T")[0];
 
-  return [..._pools]
-    .filter((p) => p.date >= today)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const { data, error } = await supabase
+    .from("waiting_pools")
+    .select(
+      "id, author_id, title, description, date, start_time, end_time, visible_to_group_id, min_people, created_at",
+    )
+    .gte("date", today)
+    .order("date", { ascending: true })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("List pools failed:", error);
+    return [];
+  }
+
+  const rows = (data ?? []) as SupabasePoolRow[];
+  const memberMap = await getPoolMemberIds(rows.map((pool) => pool.id));
+
+  return rows.map((row) => mapSupabasePool(row, memberMap.get(row.id) ?? []));
 }
 
 export async function getPool(id: string): Promise<WaitingPool | undefined> {
-  return _pools.find((p) => p.id === id);
+  const { data, error } = await supabase
+    .from("waiting_pools")
+    .select(
+      "id, author_id, title, description, date, start_time, end_time, visible_to_group_id, min_people, created_at",
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) {
+    console.error("Get pool failed:", error);
+    return undefined;
+  }
+
+  const memberMap = await getPoolMemberIds([id]);
+
+  return mapSupabasePool(
+    data as SupabasePoolRow,
+    memberMap.get(id) ?? [],
+  );
 }
 
 export async function createPool(
@@ -1017,68 +1114,93 @@ export async function createPool(
 ): Promise<WaitingPool> {
   const me = await getCurrentUser();
 
-  const pool: WaitingPool = {
-    ...input,
-    id: `pool_${Math.random().toString(36).slice(2, 9)}`,
-    authorId: me?.id ?? "u_me",
-    memberIds: [me?.id ?? "u_me"],
-    createdAt: new Date().toISOString(),
-  };
+  if (!me) {
+    throw new Error("You must be logged in to create a pool");
+  }
 
-  _pools = [pool, ..._pools];
-  saveJson(POOLS_KEY, _pools);
+  const visibleToGroupId = input.visibleToGroupId || null;
 
-  const membership: PoolMembership = {
-    id: `pm_${Math.random().toString(36).slice(2, 9)}`,
-    poolId: pool.id,
-    userId: me?.id ?? "u_me",
-    joinedAt: new Date().toISOString(),
-  };
+  const { data, error } = await supabase
+    .from("waiting_pools")
+    .insert({
+      author_id: me.id,
+      title: input.title,
+      description: input.description ?? null,
+      date: input.date,
+      start_time: input.startTime ?? null,
+      end_time: input.endTime ?? null,
+      visible_to_group_id: visibleToGroupId,
+      min_people: input.minPeople,
+    })
+    .select(
+      "id, author_id, title, description, date, start_time, end_time, visible_to_group_id, min_people, created_at",
+    )
+    .single();
 
-  _poolMembers = [..._poolMembers, membership];
-  saveJson(POOL_MEMBERS_KEY, _poolMembers);
+  if (error) {
+    console.error("Create pool failed:", error);
+    throw new Error(error.message);
+  }
 
-  return pool;
+  const pool = data as SupabasePoolRow;
+
+  const { error: membershipError } = await supabase
+    .from("pool_memberships")
+    .insert({
+      pool_id: pool.id,
+      user_id: me.id,
+    });
+
+  if (membershipError) {
+    console.error("Create pool membership failed:", membershipError);
+    throw new Error(membershipError.message);
+  }
+
+  return mapSupabasePool(pool, [me.id]);
 }
 
 export async function deletePool(id: string): Promise<boolean> {
   const me = await getCurrentUser();
 
-  const idx = _pools.findIndex((p) => p.id === id && p.authorId === me?.id);
+  if (!me) {
+    return false;
+  }
 
-  if (idx === -1) return false;
+  const { error } = await supabase
+    .from("waiting_pools")
+    .delete()
+    .eq("id", id)
+    .eq("author_id", me.id);
 
-  _pools.splice(idx, 1);
-  saveJson(POOLS_KEY, _pools);
+  if (error) {
+    console.error("Delete pool failed:", error);
+    return false;
+  }
 
   return true;
 }
 
 export async function joinPool(poolId: string): Promise<boolean> {
   const me = await getCurrentUser();
-  if (!me) return false;
 
-  const already = _poolMembers.find(
-    (m) => m.poolId === poolId && m.userId === me.id,
-  );
+  if (!me) {
+    return false;
+  }
 
-  if (already) return false;
+  const { error } = await supabase
+    .from("pool_memberships")
+    .insert({
+      pool_id: poolId,
+      user_id: me.id,
+    });
 
-  const membership: PoolMembership = {
-    id: `pm_${Math.random().toString(36).slice(2, 9)}`,
-    poolId,
-    userId: me.id,
-    joinedAt: new Date().toISOString(),
-  };
+  if (error) {
+    if (error.code === "23505") {
+      return false;
+    }
 
-  _poolMembers = [..._poolMembers, membership];
-  saveJson(POOL_MEMBERS_KEY, _poolMembers);
-
-  const pool = _pools.find((p) => p.id === poolId);
-
-  if (pool && !pool.memberIds.includes(me.id)) {
-    pool.memberIds = [...pool.memberIds, me.id];
-    saveJson(POOLS_KEY, _pools);
+    console.error("Join pool failed:", error);
+    return false;
   }
 
   return true;
@@ -1086,22 +1208,20 @@ export async function joinPool(poolId: string): Promise<boolean> {
 
 export async function leavePool(poolId: string): Promise<boolean> {
   const me = await getCurrentUser();
-  if (!me) return false;
 
-  const idx = _poolMembers.findIndex(
-    (m) => m.poolId === poolId && m.userId === me.id,
-  );
+  if (!me) {
+    return false;
+  }
 
-  if (idx === -1) return false;
+  const { error } = await supabase
+    .from("pool_memberships")
+    .delete()
+    .eq("pool_id", poolId)
+    .eq("user_id", me.id);
 
-  _poolMembers.splice(idx, 1);
-  saveJson(POOL_MEMBERS_KEY, _poolMembers);
-
-  const pool = _pools.find((p) => p.id === poolId);
-
-  if (pool) {
-    pool.memberIds = pool.memberIds.filter((id) => id !== me.id);
-    saveJson(POOLS_KEY, _pools);
+  if (error) {
+    console.error("Leave pool failed:", error);
+    return false;
   }
 
   return true;
@@ -1109,29 +1229,54 @@ export async function leavePool(poolId: string): Promise<boolean> {
 
 export async function isInPool(poolId: string): Promise<boolean> {
   const me = await getCurrentUser();
-  if (!me) return false;
 
-  return _poolMembers.some((m) => m.poolId === poolId && m.userId === me.id);
+  if (!me) {
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from("pool_memberships")
+    .select("pool_id")
+    .eq("pool_id", poolId)
+    .eq("user_id", me.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Check pool membership failed:", error);
+    return false;
+  }
+
+  return Boolean(data);
 }
 
 export async function listPoolMembers(poolId: string): Promise<User[]> {
-  const memberIds = _poolMembers
-    .filter((m) => m.poolId === poolId)
-    .map((m) => m.userId);
-
-  if (memberIds.length === 0) return [];
-
   const { data, error } = await supabase
-    .from("profiles")
-    .select("id, username, display_name")
-    .in("id", memberIds);
+    .from("pool_memberships")
+    .select("user_id")
+    .eq("pool_id", poolId);
 
   if (error) {
-    console.error("List pool members failed:", error);
+    console.error("List pool member ids failed:", error);
     return [];
   }
 
-  return (data ?? []).map(mapProfileToUser);
+  const ids = (data ?? []).map((row) => row.user_id as string);
+
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, username, display_name")
+    .in("id", ids);
+
+  if (profilesError) {
+    console.error("List pool member profiles failed:", profilesError);
+    return [];
+  }
+
+  return (profiles ?? []).map(mapProfileToUser);
 }
 
 export async function listPoolsByGroup(
@@ -1139,9 +1284,25 @@ export async function listPoolsByGroup(
 ): Promise<WaitingPool[]> {
   const today = new Date().toISOString().split("T")[0];
 
-  return _pools
-    .filter((p) => p.visibleToGroupId === groupId && p.date >= today)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const { data, error } = await supabase
+    .from("waiting_pools")
+    .select(
+      "id, author_id, title, description, date, start_time, end_time, visible_to_group_id, min_people, created_at",
+    )
+    .eq("visible_to_group_id", groupId)
+    .gte("date", today)
+    .order("date", { ascending: true })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("List pools by group failed:", error);
+    return [];
+  }
+
+  const rows = (data ?? []) as SupabasePoolRow[];
+  const memberMap = await getPoolMemberIds(rows.map((pool) => pool.id));
+
+  return rows.map((row) => mapSupabasePool(row, memberMap.get(row.id) ?? []));
 }
 
 export async function updatePool(
@@ -1155,16 +1316,51 @@ export async function updatePool(
 ): Promise<WaitingPool | undefined> {
   const me = await getCurrentUser();
 
-  const idx = _pools.findIndex((p) => p.id === id && p.authorId === me?.id);
+  if (!me) {
+    throw new Error("You must be logged in to update a pool");
+  }
 
-  if (idx === -1) return undefined;
+  const updatePayload: Record<string, unknown> = {};
 
-  _pools[idx] = { ..._pools[idx], ...input };
-  saveJson(POOLS_KEY, _pools);
+  if (input.title !== undefined) updatePayload.title = input.title;
+  if (input.description !== undefined) {
+    updatePayload.description = input.description ?? null;
+  }
+  if (input.date !== undefined) updatePayload.date = input.date;
+  if (input.startTime !== undefined) {
+    updatePayload.start_time = input.startTime ?? null;
+  }
+  if (input.endTime !== undefined) {
+    updatePayload.end_time = input.endTime ?? null;
+  }
+  if (input.minPeople !== undefined) updatePayload.min_people = input.minPeople;
 
-  return _pools[idx];
+  const { data, error } = await supabase
+    .from("waiting_pools")
+    .update(updatePayload)
+    .eq("id", id)
+    .eq("author_id", me.id)
+    .select(
+      "id, author_id, title, description, date, start_time, end_time, visible_to_group_id, min_people, created_at",
+    )
+    .maybeSingle();
+
+  if (error) {
+    console.error("Update pool failed:", error);
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return undefined;
+  }
+
+  const memberMap = await getPoolMemberIds([id]);
+
+  return mapSupabasePool(
+    data as SupabasePoolRow,
+    memberMap.get(id) ?? [],
+  );
 }
-
 /* ── User Location ───────────────────────────────── */
 
 export async function getUserLocation(): Promise<UserLocation | null> {
