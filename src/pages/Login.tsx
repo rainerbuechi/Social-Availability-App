@@ -4,50 +4,98 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { loginLocal, emailExists, createLocalAccount } from "@/lib/api";
+import { supabase } from "@/lib/supabaseClient";
 
-/**
- * Prototype login/signup page.
- * ⚠️ No real security — replace with Supabase Auth later.
- */
 export default function Login() {
   const navigate = useNavigate();
+
   const [step, setStep] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+
+  const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
+
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
-    const user = await loginLocal(email.trim(), password);
-    if (user) {
-      toast.success(`Welcome back, ${user.name}!`);
-      navigate("/feed");
-    } else {
-      const exists = await emailExists(email.trim());
-      if (exists) {
-        toast.error("Wrong password");
-      } else {
-        toast.info("No account found — let's create one!");
-        setStep("signup");
-      }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail || !password) {
+      toast.error("Email and password are required");
+      return;
     }
+
+    setIsLoading(true);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+
+    setIsLoading(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Welcome back!");
+    navigate("/feed");
   };
 
   const handleSignup = async (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !username.trim()) {
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanDisplayName = displayName.trim();
+    const cleanUsername = username.trim().toLowerCase();
+
+    if (!cleanDisplayName || !cleanUsername || !cleanEmail || !password) {
       toast.error("All fields are required");
       return;
     }
-    const user = await createLocalAccount({
-      name: name.trim(),
-      username: username.trim().toLowerCase(),
-      email: email.trim(),
+
+    setIsLoading(true);
+
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
       password,
+      options: {
+        data: {
+          display_name: cleanDisplayName,
+          username: cleanUsername,
+        },
+      },
     });
-    toast.success(`Account created! Welcome, ${user.name}`);
+
+    if (error) {
+      setIsLoading(false);
+      toast.error(error.message);
+      return;
+    }
+
+    if (data.user) {
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          display_name: cleanDisplayName,
+          username: cleanUsername,
+        })
+        .eq("id", data.user.id);
+
+      if (profileError) {
+        setIsLoading(false);
+        toast.error(profileError.message);
+        return;
+      }
+    }
+
+    setIsLoading(false);
+
+    toast.success("Account created!");
     navigate("/feed");
   };
 
@@ -75,6 +123,7 @@ export default function Login() {
               required
             />
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <Input
@@ -86,9 +135,15 @@ export default function Login() {
               required
             />
           </div>
-          <Button type="submit" className="h-12 w-full rounded-full text-base">
-            Continue
+
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="h-12 w-full rounded-full text-base"
+          >
+            {isLoading ? "Signing in..." : "Continue"}
           </Button>
+
           <button
             type="button"
             onClick={() => setStep("signup")}
@@ -103,16 +158,18 @@ export default function Login() {
           <p className="text-sm font-medium text-muted-foreground">
             Create your account
           </p>
+
           <div className="space-y-2">
-            <Label htmlFor="name">Display name</Label>
+            <Label htmlFor="display-name">Display name</Label>
             <Input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              id="display-name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Your Name"
               required
             />
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="username">Username</Label>
             <Input
@@ -123,17 +180,40 @@ export default function Login() {
               required
             />
           </div>
+
           <div className="space-y-2">
-            <Label>Email</Label>
-            <Input value={email} disabled className="opacity-60" />
+            <Label htmlFor="signup-email">Email</Label>
+            <Input
+              id="signup-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              required
+            />
           </div>
+
           <div className="space-y-2">
-            <Label>Password</Label>
-            <Input value={password} disabled type="password" className="opacity-60" />
+            <Label htmlFor="signup-password">Password</Label>
+            <Input
+              id="signup-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              minLength={6}
+              required
+            />
           </div>
-          <Button type="submit" className="h-12 w-full rounded-full text-base">
-            Create account
+
+          <Button
+            type="submit"
+            disabled={isLoading}
+            className="h-12 w-full rounded-full text-base"
+          >
+            {isLoading ? "Creating account..." : "Create account"}
           </Button>
+
           <button
             type="button"
             onClick={() => setStep("login")}
