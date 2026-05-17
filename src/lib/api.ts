@@ -568,56 +568,128 @@ export async function updateGroup(
   input: Partial<Omit<FriendGroup, "id">>,
 ): Promise<FriendGroup | undefined> {
   const meId = await getAuthUserId();
-  if (!meId) throw new Error("You must be logged in to update a group");
 
-  const { data, error } = await supabase
+  if (!meId) {
+    throw new Error("You must be logged in to update a group");
+  }
+
+  const { data: groupData, error: groupLoadError } = await supabase
     .from("friend_groups")
-    .update({
-      name: input.name,
-      emoji: input.emoji || "👥",
-    })
-    .eq("id", id)
     .select("id, owner_id, name, emoji, created_at")
+    .eq("id", id)
     .maybeSingle();
 
-  if (error) {
-    console.error("Update group failed:", error);
-    throw error;
+  if (groupLoadError) {
+    console.error("Load group before update failed:", groupLoadError);
+    throw new Error(groupLoadError.message);
   }
 
-  if (!data) return undefined;
+  if (!groupData) {
+    return undefined;
+  }
+
+  const groupRow = groupData as GroupRow;
+  const isOwner = groupRow.owner_id === meId;
+
+  let nextGroupRow = groupRow;
+
+  // Only the owner may change group name / emoji.
+  // Normal members may only add their own accepted friends as members.
+  if (isOwner && (input.name !== undefined || input.emoji !== undefined)) {
+    const { data: updatedGroup, error: updateError } = await supabase
+      .from("friend_groups")
+      .update({
+        name: input.name ?? groupRow.name,
+        emoji: input.emoji || groupRow.emoji || "👥",
+      })
+      .eq("id", id)
+      .select("id, owner_id, name, emoji, created_at")
+      .maybeSingle();
+
+    if (updateError) {
+      console.error("Update group failed:", updateError);
+      throw new Error(updateError.message);
+    }
+
+    if (updatedGroup) {
+      nextGroupRow = updatedGroup as GroupRow;
+    }
+  }
+
+  const currentMemberMap = await getMemberIdsForGroups([id]);
+  const currentMemberIds = currentMemberMap.get(id) ?? [];
 
   if (input.memberIds) {
-    const memberIds = Array.from(new Set([meId, ...input.memberIds]));
-
-    const { error: deleteError } = await supabase
-      .from("group_members")
-      .delete()
-      .eq("group_id", id);
-
-    if (deleteError) {
-      console.error("Delete old group members failed:", deleteError);
-      throw deleteError;
-    }
-
-    const { error: insertError } = await supabase.from("group_members").insert(
-      memberIds.map((userId) => ({
-        group_id: id,
-        user_id: userId,
-      })),
+    const requestedMemberIds = Array.from(
+      new Set([meId, ...input.memberIds]),
     );
 
-    if (insertError) {
-      console.error("Insert new group members failed:", insertError);
-      throw insertError;
-    }
+    if (isOwner) {
+      const membersToRemove = currentMemberIds.filter(
+        (memberId) => !requestedMemberIds.includes(memberId),
+      );
 
-    return mapGroup(data as GroupRow, memberIds);
+      const membersToAdd = requestedMemberIds.filter(
+        (memberId) => !currentMemberIds.includes(memberId),
+      );
+
+      if (membersToRemove.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("group_members")
+          .delete()
+          .eq("group_id", id)
+          .in("user_id", membersToRemove);
+
+        if (deleteError) {
+          console.error("Remove group members failed:", deleteError);
+          throw new Error(deleteError.message);
+        }
+      }
+
+      if (membersToAdd.length > 0) {
+        const { error: insertError } = await supabase
+          .from("group_members")
+          .insert(
+            membersToAdd.map((userId) => ({
+              group_id: id,
+              user_id: userId,
+            })),
+          );
+
+        if (insertError) {
+          console.error("Add group members failed:", insertError);
+          throw new Error(insertError.message);
+        }
+      }
+    } else {
+      // Non-owner members can only ADD people.
+      // They cannot rename the group and cannot remove existing members.
+      const membersToAdd = requestedMemberIds.filter(
+        (memberId) => !currentMemberIds.includes(memberId),
+      );
+
+      if (membersToAdd.length > 0) {
+        const { error: insertError } = await supabase
+          .from("group_members")
+          .insert(
+            membersToAdd.map((userId) => ({
+              group_id: id,
+              user_id: userId,
+            })),
+          );
+
+        if (insertError) {
+          console.error("Add group members as member failed:", insertError);
+          throw new Error(insertError.message);
+        }
+      }
+    }
   }
 
-  const memberMap = await getMemberIdsForGroups([id]);
+  const finalMemberMap = await getMemberIdsForGroups([id]);
+  const finalMemberIds = finalMemberMap.get(id) ?? [];
 
-  return mapGroup(data as GroupRow, memberMap.get(id) ?? []);
+  return mapGroup(nextGroupRow, finalMemberIds);
 }
 
 export async function deleteGroup(id: string): Promise<boolean> {
@@ -1487,6 +1559,34 @@ export async function saveUserLocation(loc: UserLocation): Promise<void> {
 
 /* ── Group Suggestions ───────────────────────────── */
 
+type SupabaseGroupSuggestionRow = {
+  id: string;
+  group_id: string;
+  from_user_id: string;
+  card_title: string;
+  card_type: ActivityType;
+  card_area: string;
+  card_description: string;
+  votes: Record<string, "up" | "down"> | null;
+  created_at: string;
+};
+
+function mapSupabaseGroupSuggestion(
+  row: SupabaseGroupSuggestionRow,
+): GroupSuggestion {
+  return {
+    id: row.id,
+    groupId: row.group_id,
+    fromUserId: row.from_user_id,
+    cardTitle: row.card_title,
+    cardType: row.card_type,
+    cardArea: row.card_area,
+    cardDescription: row.card_description,
+    votes: row.votes ?? {},
+    createdAt: row.created_at,
+  };
+}
+
 export async function suggestToGroup(
   groupId: string,
   card: {
@@ -1498,37 +1598,56 @@ export async function suggestToGroup(
 ): Promise<GroupSuggestion> {
   const me = await getCurrentUser();
 
-  const suggestion: GroupSuggestion = {
-    id: `sug_${Math.random().toString(36).slice(2, 9)}`,
-    groupId,
-    fromUserId: me?.id ?? "u_me",
-    cardTitle: card.title,
-    cardType: card.type,
-    cardArea: card.area,
-    cardDescription: card.description,
-    createdAt: new Date().toISOString(),
-  };
+  if (!me) {
+    throw new Error("You must be logged in to suggest a place");
+  }
 
-  _suggestions = [suggestion, ..._suggestions];
-  saveJson(SUGGESTIONS_KEY, _suggestions);
+  const { data, error } = await supabase
+    .from("group_suggestions")
+    .insert({
+      group_id: groupId,
+      from_user_id: me.id,
+      card_title: card.title,
+      card_type: card.type,
+      card_area: card.area,
+      card_description: card.description,
+      votes: {},
+    })
+    .select(
+      "id, group_id, from_user_id, card_title, card_type, card_area, card_description, votes, created_at",
+    )
+    .single();
 
-  return suggestion;
+  if (error) {
+    console.error("Suggest to group failed:", error);
+    throw new Error(error.message);
+  }
+
+  return mapSupabaseGroupSuggestion(data as SupabaseGroupSuggestionRow);
 }
 
 export async function listGroupSuggestions(
   groupId: string,
 ): Promise<GroupSuggestion[]> {
-  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  return _suggestions
-    .filter(
-      (s) =>
-        s.groupId === groupId && new Date(s.createdAt).getTime() > cutoff,
+  const { data, error } = await supabase
+    .from("group_suggestions")
+    .select(
+      "id, group_id, from_user_id, card_title, card_type, card_area, card_description, votes, created_at",
     )
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+    .eq("group_id", groupId)
+    .gt("created_at", cutoff)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("List group suggestions failed:", error);
+    return [];
+  }
+
+  return ((data ?? []) as SupabaseGroupSuggestionRow[]).map(
+    mapSupabaseGroupSuggestion,
+  );
 }
 
 export async function voteOnSuggestion(
@@ -1536,12 +1655,26 @@ export async function voteOnSuggestion(
   vote: "up" | "down",
 ): Promise<void> {
   const me = await getCurrentUser();
-  if (!me) return;
 
-  const idx = _suggestions.findIndex((s) => s.id === suggestionId);
-  if (idx === -1) return;
+  if (!me) {
+    throw new Error("You must be logged in to vote");
+  }
 
-  const votes = { ...(_suggestions[idx].votes ?? {}) };
+  const { data, error } = await supabase
+    .from("group_suggestions")
+    .select(
+      "id, group_id, from_user_id, card_title, card_type, card_area, card_description, votes, created_at",
+    )
+    .eq("id", suggestionId)
+    .maybeSingle();
+
+  if (error || !data) {
+    console.error("Load suggestion failed:", error);
+    throw new Error("Suggestion not found");
+  }
+
+  const suggestion = data as SupabaseGroupSuggestionRow;
+  const votes = { ...(suggestion.votes ?? {}) };
 
   if (votes[me.id] === vote) {
     delete votes[me.id];
@@ -1549,11 +1682,25 @@ export async function voteOnSuggestion(
     votes[me.id] = vote;
   }
 
-  _suggestions[idx] = { ..._suggestions[idx], votes };
-  saveJson(SUGGESTIONS_KEY, _suggestions);
+  const { error: updateError } = await supabase
+    .from("group_suggestions")
+    .update({ votes })
+    .eq("id", suggestionId);
+
+  if (updateError) {
+    console.error("Vote suggestion failed:", updateError);
+    throw new Error(updateError.message);
+  }
 }
 
 export async function deleteSuggestion(suggestionId: string): Promise<void> {
-  _suggestions = _suggestions.filter((s) => s.id !== suggestionId);
-  saveJson(SUGGESTIONS_KEY, _suggestions);
+  const { error } = await supabase
+    .from("group_suggestions")
+    .delete()
+    .eq("id", suggestionId);
+
+  if (error) {
+    console.error("Delete suggestion failed:", error);
+    throw new Error(error.message);
+  }
 }
