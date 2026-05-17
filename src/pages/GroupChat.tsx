@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
 import {
+  getCurrentUser,
   getGroup,
   listChatMessages,
   sendChatMessage,
@@ -9,21 +10,25 @@ import {
 } from "@/lib/api";
 import { ChatMessage, FriendGroup, User } from "@/lib/types";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 export default function GroupChat() {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [group, setGroup] = useState<FriendGroup | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [body, setBody] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   const refresh = async () => {
     if (!groupId) return;
 
-    const [g, msgs, us] = await Promise.all([
+    const [me, g, msgs, us] = await Promise.all([
+      getCurrentUser(),
       getGroup(groupId),
       listChatMessages(groupId),
       listUsers(),
@@ -34,6 +39,7 @@ export default function GroupChat() {
       return;
     }
 
+    setCurrentUser(me);
     setGroup(g);
     setMessages(msgs);
     setUsers(us);
@@ -41,6 +47,12 @@ export default function GroupChat() {
 
   useEffect(() => {
     refresh();
+
+    const interval = window.setInterval(() => {
+      refresh();
+    }, 5000);
+
+    return () => window.clearInterval(interval);
   }, [groupId]);
 
   useEffect(() => {
@@ -57,13 +69,24 @@ export default function GroupChat() {
   const handleSend = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!groupId || !body.trim()) return;
+    if (!groupId || !body.trim() || isSending) return;
 
-    await sendChatMessage(groupId, body.trim());
-    setBody("");
+    const messageBody = body.trim();
 
-    const msgs = await listChatMessages(groupId);
-    setMessages(msgs);
+    setIsSending(true);
+
+    try {
+      await sendChatMessage(groupId, messageBody);
+      setBody("");
+
+      const msgs = await listChatMessages(groupId);
+      setMessages(msgs);
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Could not send message");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   if (!group) return null;
@@ -99,7 +122,7 @@ export default function GroupChat() {
 
         {messages.map((m) => {
           const author = userById(m.authorId);
-          const isMe = m.authorId === "u_me";
+          const isMe = currentUser?.id === m.authorId;
 
           return (
             <div
@@ -147,7 +170,7 @@ export default function GroupChat() {
 
           <button
             type="submit"
-            disabled={!body.trim()}
+            disabled={!body.trim() || isSending}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
             aria-label="Send"
           >

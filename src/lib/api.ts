@@ -850,15 +850,41 @@ export async function deletePost(id: string): Promise<boolean> {
 
 /* ── Chat ────────────────────────────────────────── */
 
+type SupabaseChatMessageRow = {
+  id: string;
+  group_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+};
+
+function mapSupabaseChatMessage(row: SupabaseChatMessageRow): ChatMessage {
+  return {
+    id: row.id,
+    groupId: row.group_id,
+    authorId: row.author_id,
+    body: row.body,
+    createdAt: row.created_at,
+  };
+}
+
 export async function listChatMessages(
   groupId: string,
 ): Promise<ChatMessage[]> {
-  return _chats
-    .filter((m) => m.groupId === groupId)
-    .sort(
-      (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    );
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .select("id, group_id, author_id, body, created_at")
+    .eq("group_id", groupId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("List chat messages failed:", error);
+    return [];
+  }
+
+  return ((data ?? []) as SupabaseChatMessageRow[]).map(
+    mapSupabaseChatMessage,
+  );
 }
 
 export async function sendChatMessage(
@@ -867,47 +893,72 @@ export async function sendChatMessage(
 ): Promise<ChatMessage> {
   const me = await getCurrentUser();
 
-  const msg: ChatMessage = {
-    id: `m_${Math.random().toString(36).slice(2, 9)}`,
-    groupId,
-    authorId: me?.id ?? "u_me",
-    body,
-    createdAt: new Date().toISOString(),
-  };
+  if (!me) {
+    throw new Error("You must be logged in to send a message");
+  }
 
-  _chats = [..._chats, msg];
-  saveJson(CHAT_KEY, _chats);
+  const cleanBody = body.trim();
 
-  return msg;
+  if (!cleanBody) {
+    throw new Error("Message cannot be empty");
+  }
+
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .insert({
+      group_id: groupId,
+      author_id: me.id,
+      body: cleanBody,
+    })
+    .select("id, group_id, author_id, body, created_at")
+    .single();
+
+  if (error) {
+    console.error("Send chat message failed:", error);
+    throw new Error(error.message);
+  }
+
+  return mapSupabaseChatMessage(data as SupabaseChatMessageRow);
 }
 
 export async function getLatestChatMessage(
   groupId: string,
 ): Promise<ChatMessage | undefined> {
-  const msgs = _chats.filter((m) => m.groupId === groupId);
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .select("id, group_id, author_id, body, created_at")
+    .eq("group_id", groupId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (msgs.length === 0) return undefined;
+  if (error || !data) {
+    return undefined;
+  }
 
-  return msgs.sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-  )[0];
+  return mapSupabaseChatMessage(data as SupabaseChatMessageRow);
 }
 
 export async function getRecentMessagesForGroup(
   groupId: string,
   limit = 3,
 ): Promise<ChatMessage[]> {
-  return _chats
-    .filter((m) => m.groupId === groupId)
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    )
-    .slice(0, limit)
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .select("id, group_id, author_id, body, created_at")
+    .eq("group_id", groupId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("Get recent messages failed:", error);
+    return [];
+  }
+
+  return ((data ?? []) as SupabaseChatMessageRow[])
+    .map(mapSupabaseChatMessage)
     .reverse();
 }
-
 /* ── Privacy ─────────────────────────────────────── */
 
 export async function getPrivacy(): Promise<PrivacySettings> {
@@ -923,15 +974,43 @@ export async function updatePrivacy(
 
 /* ── Participation ───────────────────────────────── */
 
+type SupabasePostParticipationRow = {
+  id: string;
+  post_id: string;
+  user_id: string;
+  response_message: string | null;
+  created_at: string;
+};
+
+function mapSupabasePostParticipation(
+  row: SupabasePostParticipationRow,
+): PostParticipation {
+  return {
+    id: row.id,
+    postId: row.post_id,
+    userId: row.user_id,
+    responseMessage: row.response_message ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
 export async function listPostParticipants(
   postId: string,
 ): Promise<PostParticipation[]> {
-  return _participants
-    .filter((p) => p.postId === postId)
-    .sort(
-      (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    );
+  const { data, error } = await supabase
+    .from("post_participations")
+    .select("id, post_id, user_id, response_message, created_at")
+    .eq("post_id", postId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("List post participants failed:", error);
+    return [];
+  }
+
+  return ((data ?? []) as SupabasePostParticipationRow[]).map(
+    mapSupabasePostParticipation,
+  );
 }
 
 export async function joinPost(
@@ -939,48 +1018,51 @@ export async function joinPost(
   responseMessage?: string,
 ): Promise<PostParticipation> {
   const me = await getCurrentUser();
-  const meId = me?.id ?? "u_me";
 
-  const existing = _participants.find(
-    (p) => p.postId === postId && p.userId === meId,
-  );
-
-  if (existing) {
-    if (responseMessage !== undefined) {
-      existing.responseMessage = responseMessage;
-    }
-
-    saveJson(PARTICIPANTS_KEY, _participants);
-
-    return existing;
+  if (!me) {
+    throw new Error("You must be logged in to join this post");
   }
 
-  const entry: PostParticipation = {
-    id: `pp_${Math.random().toString(36).slice(2, 9)}`,
-    postId,
-    userId: meId,
-    responseMessage: responseMessage || undefined,
-    createdAt: new Date().toISOString(),
-  };
+  const { data, error } = await supabase
+    .from("post_participations")
+    .upsert(
+      {
+        post_id: postId,
+        user_id: me.id,
+        response_message: responseMessage?.trim() || null,
+      },
+      {
+        onConflict: "post_id,user_id",
+      },
+    )
+    .select("id, post_id, user_id, response_message, created_at")
+    .single();
 
-  _participants.push(entry);
-  saveJson(PARTICIPANTS_KEY, _participants);
+  if (error) {
+    console.error("Join post failed:", error);
+    throw new Error(error.message);
+  }
 
-  return entry;
+  return mapSupabasePostParticipation(data as SupabasePostParticipationRow);
 }
 
 export async function leavePost(postId: string): Promise<boolean> {
   const me = await getCurrentUser();
-  const meId = me?.id ?? "u_me";
 
-  const idx = _participants.findIndex(
-    (p) => p.postId === postId && p.userId === meId,
-  );
+  if (!me) {
+    return false;
+  }
 
-  if (idx === -1) return false;
+  const { error } = await supabase
+    .from("post_participations")
+    .delete()
+    .eq("post_id", postId)
+    .eq("user_id", me.id);
 
-  _participants.splice(idx, 1);
-  saveJson(PARTICIPANTS_KEY, _participants);
+  if (error) {
+    console.error("Leave post failed:", error);
+    return false;
+  }
 
   return true;
 }
@@ -989,15 +1071,42 @@ export async function isCurrentUserParticipating(
   postId: string,
 ): Promise<boolean> {
   const me = await getCurrentUser();
-  const meId = me?.id ?? "u_me";
 
-  return _participants.some((p) => p.postId === postId && p.userId === meId);
+  if (!me) {
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from("post_participations")
+    .select("id")
+    .eq("post_id", postId)
+    .eq("user_id", me.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Check post participation failed:", error);
+    return false;
+  }
+
+  return Boolean(data);
 }
 
 export async function getParticipantCount(postId: string): Promise<number> {
-  return _participants.filter((p) => p.postId === postId).length;
-}
+  const { count, error } = await supabase
+    .from("post_participations")
+    .select("id", {
+      count: "exact",
+      head: true,
+    })
+    .eq("post_id", postId);
 
+  if (error) {
+    console.error("Get participant count failed:", error);
+    return 0;
+  }
+
+  return count ?? 0;
+}
 /* ── Waiting Pools ───────────────────────────────── */
 
 type SupabasePoolRow = {
