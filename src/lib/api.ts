@@ -1,30 +1,30 @@
 /**
  * Data access layer.
- * Currently backed by in-memory mocks + localStorage.
- * ⚠️ PROTOTYPE ONLY — no real security. Replace with Supabase Auth + DB later.
+ * Supabase-backed for auth, profiles, friends, groups and posts.
+ * Some secondary prototype features are still local.
  */
 import {
-  ActivityType,        
+  ActivityType,
   AvailabilityPost,
   ChatMessage,
   Friendship,
   FriendGroup,
   FriendshipStatus,
-  GroupSuggestion,     
+  GroupSuggestion,
   PoolMembership,
   PostParticipation,
   PrivacySettings,
   User,
-  UserLocation,       
+  UserLocation,
   WaitingPool,
 } from "./types";
 import {
-  currentUser as mockMe,
   defaultPrivacy,
   groups as mockGroups,
   posts as mockPosts,
   users as mockUsers,
 } from "./mockData";
+import { supabase } from "./supabaseClient";
 
 /* ── Storage helpers ─────────────────────────────── */
 
@@ -57,72 +57,139 @@ function saveJson(key: string, data: unknown): void {
   } catch {}
 }
 
-/* ── In-memory state ─────────────────────────────── */
+/* ── Local fallback state ────────────────────────── */
 
 let _users: User[] = loadJson<User[]>(USERS_KEY, [...mockUsers]);
-let _posts: AvailabilityPost[] = loadJson<AvailabilityPost[]>(POSTS_KEY, [...mockPosts]);
-let _groups: FriendGroup[] = loadJson<FriendGroup[]>(GROUPS_KEY, [...mockGroups]);
-let _chats: ChatMessage[] = loadJson<ChatMessage[]>(CHAT_KEY, []);
-let _friends: Friendship[] = loadJson<Friendship[]>(FRIENDS_KEY, [
-  { userId: "u1", status: "accepted" },
-  { userId: "u2", status: "accepted" },
-  { userId: "u3", status: "accepted" },
-  { userId: "u4", status: "accepted" },
-  { userId: "u5", status: "accepted" },
-  { userId: "u6", status: "accepted" },
+let _posts: AvailabilityPost[] = loadJson<AvailabilityPost[]>(POSTS_KEY, [
+  ...mockPosts,
 ]);
+let _groups: FriendGroup[] = loadJson<FriendGroup[]>(GROUPS_KEY, [
+  ...mockGroups,
+]);
+let _chats: ChatMessage[] = loadJson<ChatMessage[]>(CHAT_KEY, []);
+let _friends: Friendship[] = loadJson<Friendship[]>(FRIENDS_KEY, []);
 let _privacy: PrivacySettings = { ...defaultPrivacy };
-let _participants: PostParticipation[] = loadJson<PostParticipation[]>(PARTICIPANTS_KEY, []);
+let _participants: PostParticipation[] = loadJson<PostParticipation[]>(
+  PARTICIPANTS_KEY,
+  [],
+);
 let _pools: WaitingPool[] = loadJson<WaitingPool[]>(POOLS_KEY, []);
-let _poolMembers: PoolMembership[] = loadJson<PoolMembership[]>(POOL_MEMBERS_KEY, []);
-let _suggestions: GroupSuggestion[] = loadJson<GroupSuggestion[]>(SUGGESTIONS_KEY, []);
+let _poolMembers: PoolMembership[] = loadJson<PoolMembership[]>(
+  POOL_MEMBERS_KEY,
+  [],
+);
+let _suggestions: GroupSuggestion[] = loadJson<GroupSuggestion[]>(
+  SUGGESTIONS_KEY,
+  [],
+);
 
-/* ── Auth (prototype-only — replace with Supabase Auth) ── */
+/* ── Helpers ─────────────────────────────────────── */
 
-function _getLoggedInId(): string | null {
-  return localStorage.getItem(AUTH_KEY);
+function mapProfileToUser(profile: {
+  id: string;
+  username: string;
+  display_name: string;
+}): User {
+  return {
+    id: profile.id,
+    name: profile.display_name,
+    username: profile.username,
+    email: "",
+    password: "",
+  };
 }
 
-function _getMe(): User | null {
-  const id = _getLoggedInId();
-  if (!id) return null;
-  return _users.find((u) => u.id === id) ?? null;
+async function getAuthUserId(): Promise<string | null> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return session?.user?.id ?? null;
 }
 
-/** Returns null if not logged in */
+async function ensureProfile(): Promise<User | null> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  const authUser = session?.user;
+
+  if (!authUser) return null;
+
+  const fallbackUsername =
+    authUser.user_metadata?.username ||
+    authUser.email?.split("@")[0] ||
+    `user_${authUser.id.slice(0, 8)}`;
+
+  const fallbackDisplayName =
+    authUser.user_metadata?.display_name ||
+    authUser.user_metadata?.name ||
+    fallbackUsername;
+
+  const { data: existing } = await supabase
+    .from("profiles")
+    .select("id, username, display_name")
+    .eq("id", authUser.id)
+    .maybeSingle();
+
+  if (existing) {
+    return mapProfileToUser(existing);
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .insert({
+      id: authUser.id,
+      username: fallbackUsername,
+      display_name: fallbackDisplayName,
+      avatar_url: authUser.user_metadata?.avatar_url ?? null,
+    })
+    .select("id, username, display_name")
+    .single();
+
+  if (error || !data) {
+    console.error("Ensure profile failed:", error);
+    return {
+      id: authUser.id,
+      name: fallbackDisplayName,
+      username: fallbackUsername,
+      email: authUser.email ?? "",
+      password: "",
+    };
+  }
+
+  return mapProfileToUser(data);
+}
+
+/* ── Auth ────────────────────────────────────────── */
+
 export async function getCurrentUser(): Promise<User | null> {
-  return _getMe();
+  return ensureProfile();
 }
 
-/** Check if a user session exists */
 export async function isLoggedIn(): Promise<boolean> {
-  return _getLoggedInId() !== null;
+  const id = await getAuthUserId();
+  return Boolean(id);
 }
 
-/**
- * Log in with email + password. Prototype only — plaintext comparison.
- * Returns the user or null if credentials don't match.
- */
-export async function loginLocal(email: string, password: string): Promise<User | null> {
+/* Legacy local auth helpers kept for old screens */
+export async function loginLocal(
+  email: string,
+  password: string,
+): Promise<User | null> {
   const user = _users.find(
-    (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password,
+    (u) =>
+      u.email.toLowerCase() === email.toLowerCase() && u.password === password,
   );
   if (!user) return null;
   localStorage.setItem(AUTH_KEY, user.id);
   return user;
 }
 
-/**
- * Check if an email already exists among local users.
- */
 export async function emailExists(email: string): Promise<boolean> {
   return _users.some((u) => u.email.toLowerCase() === email.toLowerCase());
 }
 
-/**
- * Create a new local account. Prototype only — password stored in plain text.
- * Replace with Supabase Auth signUp later.
- */
 export async function createLocalAccount(input: {
   name: string;
   username: string;
@@ -134,172 +201,672 @@ export async function createLocalAccount(input: {
     name: input.name,
     username: input.username,
     email: input.email,
-    password: input.password, // ⚠️ prototype only
+    password: input.password,
   };
+
   _users.push(user);
   saveJson(USERS_KEY, _users);
   localStorage.setItem(AUTH_KEY, user.id);
+
   return user;
 }
 
-/** Log out the current user. */
 export async function logoutLocal(): Promise<void> {
   localStorage.removeItem(AUTH_KEY);
 }
 
-/** Update the current user's profile fields. */
-export async function updateCurrentUser(patch: Partial<Pick<User, "name" | "username">>): Promise<User | null> {
-  const me = _getMe();
+export async function updateCurrentUser(
+  patch: Partial<Pick<User, "name" | "username">>,
+): Promise<User | null> {
+  const me = await ensureProfile();
   if (!me) return null;
-  const idx = _users.findIndex((u) => u.id === me.id);
-  if (idx === -1) return null;
-  if (patch.name) _users[idx].name = patch.name;
-  if (patch.username) _users[idx].username = patch.username;
-  saveJson(USERS_KEY, _users);
-  return _users[idx];
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      display_name: patch.name ?? me.name,
+      username: patch.username ?? me.username,
+    })
+    .eq("id", me.id)
+    .select("id, username, display_name")
+    .single();
+
+  if (error || !data) {
+    console.error("Update current user failed:", error);
+    return null;
+  }
+
+  return mapProfileToUser(data);
 }
 
 /* ── Users ───────────────────────────────────────── */
 
 export async function listUsers(): Promise<User[]> {
-  return _users;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, username, display_name")
+    .order("display_name", { ascending: true });
+
+  if (error) {
+    console.error("List users failed:", error);
+    return [];
+  }
+
+  return (data ?? []).map(mapProfileToUser);
 }
 
 export async function getUser(id: string): Promise<User | undefined> {
-  return _users.find((u) => u.id === id);
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, username, display_name")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) {
+    return undefined;
+  }
+
+  return mapProfileToUser(data);
+}
+
+/* ── Friends ─────────────────────────────────────── */
+
+type FriendshipRow = {
+  id: string;
+  from_id: string;
+  to_id: string;
+  status: "pending" | "accepted" | "declined" | "blocked";
+};
+
+export async function listFriendships(): Promise<Friendship[]> {
+  const meId = await getAuthUserId();
+  if (!meId) return [];
+
+  const { data, error } = await supabase
+    .from("friendships")
+    .select("id, from_id, to_id, status")
+    .or(`from_id.eq.${meId},to_id.eq.${meId}`);
+
+  if (error) {
+    console.error("List friendships failed:", error);
+    return [];
+  }
+
+  return ((data ?? []) as FriendshipRow[]).map((row) => ({
+    userId: row.from_id === meId ? row.to_id : row.from_id,
+    status: row.status as FriendshipStatus,
+  }));
+}
+
+export async function getFriendshipStatus(
+  userId: string,
+): Promise<FriendshipStatus> {
+  const friendships = await listFriendships();
+  const f = friendships.find((fr) => fr.userId === userId);
+  return f?.status ?? "none";
+}
+
+export async function listAcceptedFriends(): Promise<User[]> {
+  const meId = await getAuthUserId();
+  if (!meId) return [];
+
+  const { data, error } = await supabase
+    .from("friendships")
+    .select("from_id, to_id, status")
+    .or(`from_id.eq.${meId},to_id.eq.${meId}`)
+    .eq("status", "accepted");
+
+  if (error) {
+    console.error("List accepted friends failed:", error);
+    return [];
+  }
+
+  const friendIds = ((data ?? []) as FriendshipRow[]).map((row) =>
+    row.from_id === meId ? row.to_id : row.from_id,
+  );
+
+  if (friendIds.length === 0) return [];
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, username, display_name")
+    .in("id", friendIds);
+
+  if (profilesError) {
+    console.error("List accepted friend profiles failed:", profilesError);
+    return [];
+  }
+
+  return (profiles ?? []).map(mapProfileToUser);
+}
+
+export async function sendFriendRequest(userId: string): Promise<Friendship> {
+  const meId = await getAuthUserId();
+  if (!meId) throw new Error("You must be logged in");
+
+  const { error } = await supabase.from("friendships").insert({
+    from_id: meId,
+    to_id: userId,
+    status: "pending",
+  });
+
+  if (error) throw error;
+
+  return { userId, status: "pending" };
+}
+
+export async function acceptFriendRequest(
+  userId: string,
+): Promise<Friendship> {
+  const meId = await getAuthUserId();
+  if (!meId) throw new Error("You must be logged in");
+
+  const { error } = await supabase
+    .from("friendships")
+    .update({ status: "accepted", updated_at: new Date().toISOString() })
+    .eq("from_id", userId)
+    .eq("to_id", meId);
+
+  if (error) throw error;
+
+  return { userId, status: "accepted" };
+}
+
+export async function removeFriend(userId: string): Promise<boolean> {
+  const meId = await getAuthUserId();
+  if (!meId) return false;
+
+  const { error } = await supabase
+    .from("friendships")
+    .delete()
+    .or(
+      `and(from_id.eq.${meId},to_id.eq.${userId}),and(from_id.eq.${userId},to_id.eq.${meId})`,
+    );
+
+  if (error) {
+    console.error("Remove friend failed:", error);
+    return false;
+  }
+
+  await removeUserFromAllGroups(userId);
+
+  return true;
+}
+
+export async function searchUsers(query: string): Promise<User[]> {
+  const meId = await getAuthUserId();
+  const q = query.toLowerCase().trim();
+
+  if (!q) return [];
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, username, display_name")
+    .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
+    .neq("id", meId ?? "")
+    .limit(20);
+
+  if (error) {
+    console.error("Search users failed:", error);
+    return [];
+  }
+
+  return (data ?? []).map(mapProfileToUser);
 }
 
 /* ── Groups ──────────────────────────────────────── */
 
+type GroupRow = {
+  id: string;
+  owner_id: string;
+  name: string;
+  emoji: string;
+  created_at: string;
+};
+
+type GroupMemberRow = {
+  group_id: string;
+  user_id: string;
+};
+
+async function getMemberIdsForGroups(groupIds: string[]) {
+  if (groupIds.length === 0) return new Map<string, string[]>();
+
+  const { data, error } = await supabase
+    .from("group_members")
+    .select("group_id, user_id")
+    .in("group_id", groupIds);
+
+  if (error) {
+    console.error("Get group members failed:", error);
+    return new Map<string, string[]>();
+  }
+
+  const map = new Map<string, string[]>();
+
+  for (const row of (data ?? []) as GroupMemberRow[]) {
+    const current = map.get(row.group_id) ?? [];
+    current.push(row.user_id);
+    map.set(row.group_id, current);
+  }
+
+  return map;
+}
+
+function mapGroup(row: GroupRow, memberIds: string[]): FriendGroup {
+  return {
+    id: row.id,
+    name: row.name,
+    emoji: row.emoji || "",
+    memberIds,
+  };
+}
+
 export async function listGroups(): Promise<FriendGroup[]> {
-  return [..._groups];
+  const { data, error } = await supabase
+    .from("friend_groups")
+    .select("id, owner_id, name, emoji, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("List groups failed:", error);
+    return [];
+  }
+
+  const rows = (data ?? []) as GroupRow[];
+  const memberMap = await getMemberIdsForGroups(rows.map((g) => g.id));
+
+  return rows.map((row) => mapGroup(row, memberMap.get(row.id) ?? []));
 }
 
 export async function getGroup(id: string): Promise<FriendGroup | undefined> {
-  return _groups.find((g) => g.id === id);
+  const { data, error } = await supabase
+    .from("friend_groups")
+    .select("id, owner_id, name, emoji, created_at")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) {
+    return undefined;
+  }
+
+  const memberMap = await getMemberIdsForGroups([id]);
+
+  return mapGroup(data as GroupRow, memberMap.get(id) ?? []);
 }
 
 export async function listGroupMembers(groupId: string): Promise<User[]> {
-  const g = _groups.find((gr) => gr.id === groupId);
-  if (!g) return [];
-  return _users.filter((u) => g.memberIds.includes(u.id));
+  const { data, error } = await supabase
+    .from("group_members")
+    .select("user_id")
+    .eq("group_id", groupId);
+
+  if (error) {
+    console.error("List group members failed:", error);
+    return [];
+  }
+
+  const ids = (data ?? []).map((row) => row.user_id as string);
+
+  if (ids.length === 0) return [];
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, username, display_name")
+    .in("id", ids);
+
+  if (profilesError) {
+    console.error("List group member profiles failed:", profilesError);
+    return [];
+  }
+
+  return (profiles ?? []).map(mapProfileToUser);
 }
 
 export async function createGroup(
   input: Omit<FriendGroup, "id">,
 ): Promise<FriendGroup> {
-  const group: FriendGroup = {
-    ...input,
-    id: `g_${Math.random().toString(36).slice(2, 9)}`,
-  };
-  _groups = [..._groups, group];
-  saveJson(GROUPS_KEY, _groups);
-  return group;
+  const meId = await getAuthUserId();
+  if (!meId) throw new Error("You must be logged in to create a group");
+
+  const memberIds = Array.from(new Set([meId, ...input.memberIds]));
+
+  const { data, error } = await supabase
+    .from("friend_groups")
+    .insert({
+      owner_id: meId,
+      name: input.name,
+      emoji: input.emoji || "👥",
+    })
+    .select("id, owner_id, name, emoji, created_at")
+    .single();
+
+  if (error) {
+    console.error("Create group failed:", error);
+    throw error;
+  }
+
+  const group = data as GroupRow;
+
+  const { error: membersError } = await supabase.from("group_members").insert(
+    memberIds.map((id) => ({
+      group_id: group.id,
+      user_id: id,
+    })),
+  );
+
+  if (membersError) {
+    console.error("Create group members failed:", membersError);
+    throw membersError;
+  }
+
+  return mapGroup(group, memberIds);
 }
 
 export async function updateGroup(
   id: string,
   input: Partial<Omit<FriendGroup, "id">>,
 ): Promise<FriendGroup | undefined> {
-  const idx = _groups.findIndex((g) => g.id === id);
-  if (idx === -1) return undefined;
-  _groups[idx] = { ..._groups[idx], ...input };
-  saveJson(GROUPS_KEY, _groups);
-  return _groups[idx];
+  const meId = await getAuthUserId();
+  if (!meId) throw new Error("You must be logged in to update a group");
+
+  const { data, error } = await supabase
+    .from("friend_groups")
+    .update({
+      name: input.name,
+      emoji: input.emoji || "👥",
+    })
+    .eq("id", id)
+    .select("id, owner_id, name, emoji, created_at")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Update group failed:", error);
+    throw error;
+  }
+
+  if (!data) return undefined;
+
+  if (input.memberIds) {
+    const memberIds = Array.from(new Set([meId, ...input.memberIds]));
+
+    const { error: deleteError } = await supabase
+      .from("group_members")
+      .delete()
+      .eq("group_id", id);
+
+    if (deleteError) {
+      console.error("Delete old group members failed:", deleteError);
+      throw deleteError;
+    }
+
+    const { error: insertError } = await supabase.from("group_members").insert(
+      memberIds.map((userId) => ({
+        group_id: id,
+        user_id: userId,
+      })),
+    );
+
+    if (insertError) {
+      console.error("Insert new group members failed:", insertError);
+      throw insertError;
+    }
+
+    return mapGroup(data as GroupRow, memberIds);
+  }
+
+  const memberMap = await getMemberIdsForGroups([id]);
+
+  return mapGroup(data as GroupRow, memberMap.get(id) ?? []);
 }
 
 export async function deleteGroup(id: string): Promise<boolean> {
-  if (id === "g4") return false;
-  const idx = _groups.findIndex((g) => g.id === id);
-  if (idx === -1) return false;
-  _groups.splice(idx, 1);
-  saveJson(GROUPS_KEY, _groups);
+  const { error } = await supabase.from("friend_groups").delete().eq("id", id);
+
+  if (error) {
+    console.error("Delete group failed:", error);
+    return false;
+  }
+
   return true;
 }
 
 export async function groupHasPosts(groupId: string): Promise<boolean> {
-  return _posts.some((p) => p.visibleToGroupId === groupId);
-}
+  const { data, error } = await supabase
+    .from("posts")
+    .select("id")
+    .eq("visible_to_group_id", groupId)
+    .limit(1);
 
-/** Remove a user from all custom groups (called when unfriending). */
-export async function removeUserFromAllGroups(userId: string): Promise<void> {
-  for (const g of _groups) {
-    g.memberIds = g.memberIds.filter((id) => id !== userId);
+  if (error) {
+    console.error("Check group posts failed:", error);
+    return false;
   }
-  saveJson(GROUPS_KEY, _groups);
+
+  return (data ?? []).length > 0;
 }
 
-/* ── Posts ────────────────────────────────────────── */
+export async function removeUserFromAllGroups(userId: string): Promise<void> {
+  const groups = await listGroups();
+
+  for (const group of groups) {
+    if (!group.memberIds.includes(userId)) continue;
+
+    await updateGroup(group.id, {
+      ...group,
+      memberIds: group.memberIds.filter((id) => id !== userId),
+    });
+  }
+}
+
+/* ── Posts ───────────────────────────────────────── */
+
+type SupabasePostRow = {
+  id: string;
+  author_id: string;
+  status: string;
+  message: string | null;
+  start_time: string;
+  end_time: string;
+  location_name: string | null;
+  location_precision: string;
+  visible_to_group_id: string | null;
+  created_at: string;
+};
+
+function mapSupabasePost(row: SupabasePostRow): AvailabilityPost {
+  return {
+    id: row.id,
+    authorId: row.author_id,
+    status: row.status as AvailabilityPost["status"],
+    message: row.message ?? undefined,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    locationName: row.location_name ?? undefined,
+    locationPrecision:
+      row.location_precision as AvailabilityPost["locationPrecision"],
+    visibleToGroupId: row.visible_to_group_id ?? "",
+    createdAt: row.created_at,
+  };
+}
 
 export async function listFeed(): Promise<AvailabilityPost[]> {
   const now = new Date().toISOString();
-  return [..._posts]
-    .filter((p) => p.endTime > now)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const { data, error } = await supabase
+    .from("posts")
+    .select(
+      "id, author_id, status, message, start_time, end_time, location_name, location_precision, visible_to_group_id, created_at",
+    )
+    .gt("end_time", now)
+    .order("start_time", { ascending: true });
+
+  if (error) {
+    console.error("List feed failed:", error);
+    return [];
+  }
+
+  return ((data ?? []) as SupabasePostRow[]).map(mapSupabasePost);
 }
 
-export async function listPostsByGroup(groupId: string): Promise<AvailabilityPost[]> {
+export async function listPostsByGroup(
+  groupId: string,
+): Promise<AvailabilityPost[]> {
   const now = new Date().toISOString();
-  return _posts
-    .filter((p) => p.visibleToGroupId === groupId && p.endTime > now)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const { data, error } = await supabase
+    .from("posts")
+    .select(
+      "id, author_id, status, message, start_time, end_time, location_name, location_precision, visible_to_group_id, created_at",
+    )
+    .eq("visible_to_group_id", groupId)
+    .gt("end_time", now)
+    .order("start_time", { ascending: true });
+
+  if (error) {
+    console.error("List group posts failed:", error);
+    return [];
+  }
+
+  return ((data ?? []) as SupabasePostRow[]).map(mapSupabasePost);
 }
 
-export async function getPost(id: string): Promise<AvailabilityPost | undefined> {
-  return _posts.find((p) => p.id === id);
+export async function getPost(
+  id: string,
+): Promise<AvailabilityPost | undefined> {
+  const { data, error } = await supabase
+    .from("posts")
+    .select(
+      "id, author_id, status, message, start_time, end_time, location_name, location_precision, visible_to_group_id, created_at",
+    )
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) {
+    return undefined;
+  }
+
+  return mapSupabasePost(data as SupabasePostRow);
 }
 
 export async function createPost(
   input: Omit<AvailabilityPost, "id" | "authorId" | "createdAt">,
 ): Promise<AvailabilityPost> {
-  const me = _getMe();
-  const post: AvailabilityPost = {
-    ...input,
-    id: `p_${Math.random().toString(36).slice(2, 9)}`,
-    authorId: me?.id ?? "u_me",
-    createdAt: new Date().toISOString(),
-  };
-  _posts = [post, ..._posts];
-  saveJson(POSTS_KEY, _posts);
-  return post;
+  const me = await ensureProfile();
+
+  if (!me) {
+    throw new Error("You must be logged in to create a post");
+  }
+
+  const visibleToGroupId = input.visibleToGroupId || null;
+
+  const { data, error } = await supabase
+    .from("posts")
+    .insert({
+      author_id: me.id,
+      status: input.status,
+      message: input.message ?? null,
+      start_time: input.startTime,
+      end_time: input.endTime,
+      location_name: input.locationName ?? null,
+      location_precision: input.locationPrecision,
+      visible_to_group_id: visibleToGroupId,
+    })
+    .select(
+      "id, author_id, status, message, start_time, end_time, location_name, location_precision, visible_to_group_id, created_at",
+    )
+    .single();
+
+  if (error) {
+    console.error("Create post failed:", error);
+    throw new Error(error.message);
+  }
+
+  return mapSupabasePost(data as SupabasePostRow);
 }
 
 export async function updatePost(
   id: string,
   input: Omit<AvailabilityPost, "id" | "authorId" | "createdAt">,
 ): Promise<AvailabilityPost | undefined> {
-  const me = _getMe();
-  const meId = me?.id ?? "u_me";
-  const idx = _posts.findIndex((p) => p.id === id && p.authorId === meId);
-  if (idx === -1) return undefined;
-  _posts[idx] = { ..._posts[idx], ...input };
-  saveJson(POSTS_KEY, _posts);
-  return _posts[idx];
+  const meId = await getAuthUserId();
+
+  if (!meId) {
+    throw new Error("You must be logged in to update a post");
+  }
+
+  const visibleToGroupId = input.visibleToGroupId || null;
+
+  const { data, error } = await supabase
+    .from("posts")
+    .update({
+      status: input.status,
+      message: input.message ?? null,
+      start_time: input.startTime,
+      end_time: input.endTime,
+      location_name: input.locationName ?? null,
+      location_precision: input.locationPrecision,
+      visible_to_group_id: visibleToGroupId,
+    })
+    .eq("id", id)
+    .eq("author_id", meId)
+    .select(
+      "id, author_id, status, message, start_time, end_time, location_name, location_precision, visible_to_group_id, created_at",
+    )
+    .maybeSingle();
+
+  if (error) {
+    console.error("Update post failed:", error);
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return undefined;
+  }
+
+  return mapSupabasePost(data as SupabasePostRow);
 }
 
 export async function deletePost(id: string): Promise<boolean> {
-  const me = _getMe();
-  const meId = me?.id ?? "u_me";
-  const idx = _posts.findIndex((p) => p.id === id && p.authorId === meId);
-  if (idx === -1) return false;
-  _posts.splice(idx, 1);
-  saveJson(POSTS_KEY, _posts);
+  const meId = await getAuthUserId();
+
+  if (!meId) {
+    return false;
+  }
+
+  const { error } = await supabase
+    .from("posts")
+    .delete()
+    .eq("id", id)
+    .eq("author_id", meId);
+
+  if (error) {
+    console.error("Delete post failed:", error);
+    return false;
+  }
+
   return true;
 }
 
 /* ── Chat ────────────────────────────────────────── */
 
-export async function listChatMessages(groupId: string): Promise<ChatMessage[]> {
+export async function listChatMessages(
+  groupId: string,
+): Promise<ChatMessage[]> {
   return _chats
     .filter((m) => m.groupId === groupId)
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    .sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
 }
 
 export async function sendChatMessage(
   groupId: string,
   body: string,
 ): Promise<ChatMessage> {
-  const me = _getMe();
+  const me = await getCurrentUser();
+
   const msg: ChatMessage = {
     id: `m_${Math.random().toString(36).slice(2, 9)}`,
     groupId,
@@ -307,85 +874,38 @@ export async function sendChatMessage(
     body,
     createdAt: new Date().toISOString(),
   };
+
   _chats = [..._chats, msg];
   saveJson(CHAT_KEY, _chats);
+
   return msg;
 }
 
-export async function getLatestChatMessage(groupId: string): Promise<ChatMessage | undefined> {
+export async function getLatestChatMessage(
+  groupId: string,
+): Promise<ChatMessage | undefined> {
   const msgs = _chats.filter((m) => m.groupId === groupId);
+
   if (msgs.length === 0) return undefined;
-  return msgs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+  return msgs.sort(
+    (a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  )[0];
 }
 
-export async function getRecentMessagesForGroup(groupId: string, limit = 3): Promise<ChatMessage[]> {
+export async function getRecentMessagesForGroup(
+  groupId: string,
+  limit = 3,
+): Promise<ChatMessage[]> {
   return _chats
     .filter((m) => m.groupId === groupId)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
     .slice(0, limit)
     .reverse();
-}
-
-/* ── Friends ──────────────────────────────────────── */
-
-export async function listFriendships(): Promise<Friendship[]> {
-  return [..._friends];
-}
-
-export async function getFriendshipStatus(userId: string): Promise<FriendshipStatus> {
-  const f = _friends.find((fr) => fr.userId === userId);
-  return f?.status ?? "none";
-}
-
-export async function listAcceptedFriends(): Promise<User[]> {
-  const accepted = _friends.filter((f) => f.status === "accepted").map((f) => f.userId);
-  return _users.filter((u) => accepted.includes(u.id));
-}
-
-export async function sendFriendRequest(userId: string): Promise<Friendship> {
-  const existing = _friends.find((f) => f.userId === userId);
-  if (existing) {
-    existing.status = "pending";
-  } else {
-    _friends.push({ userId, status: "pending" });
-  }
-  saveJson(FRIENDS_KEY, _friends);
-  return _friends.find((f) => f.userId === userId)!;
-}
-
-export async function acceptFriendRequest(userId: string): Promise<Friendship> {
-  const existing = _friends.find((f) => f.userId === userId);
-  if (existing) {
-    existing.status = "accepted";
-  } else {
-    _friends.push({ userId, status: "accepted" });
-  }
-  saveJson(FRIENDS_KEY, _friends);
-  return _friends.find((f) => f.userId === userId)!;
-}
-
-export async function removeFriend(userId: string): Promise<boolean> {
-  const idx = _friends.findIndex((f) => f.userId === userId);
-  if (idx === -1) return false;
-  _friends.splice(idx, 1);
-  saveJson(FRIENDS_KEY, _friends);
-  // Also remove from all groups
-  await removeUserFromAllGroups(userId);
-  return true;
-}
-
-/** Search users by name, username, or email (excludes current user). */
-export async function searchUsers(query: string): Promise<User[]> {
-  const me = _getMe();
-  const q = query.toLowerCase().trim();
-  if (!q) return [];
-  return _users.filter(
-    (u) =>
-      u.id !== me?.id &&
-      (u.name.toLowerCase().includes(q) ||
-        u.username.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q)),
-  );
 }
 
 /* ── Privacy ─────────────────────────────────────── */
@@ -403,21 +923,38 @@ export async function updatePrivacy(
 
 /* ── Participation ───────────────────────────────── */
 
-export async function listPostParticipants(postId: string): Promise<PostParticipation[]> {
+export async function listPostParticipants(
+  postId: string,
+): Promise<PostParticipation[]> {
   return _participants
     .filter((p) => p.postId === postId)
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    .sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
 }
 
-export async function joinPost(postId: string, responseMessage?: string): Promise<PostParticipation> {
-  const me = _getMe();
+export async function joinPost(
+  postId: string,
+  responseMessage?: string,
+): Promise<PostParticipation> {
+  const me = await getCurrentUser();
   const meId = me?.id ?? "u_me";
-  const existing = _participants.find((p) => p.postId === postId && p.userId === meId);
+
+  const existing = _participants.find(
+    (p) => p.postId === postId && p.userId === meId,
+  );
+
   if (existing) {
-    if (responseMessage !== undefined) existing.responseMessage = responseMessage;
+    if (responseMessage !== undefined) {
+      existing.responseMessage = responseMessage;
+    }
+
     saveJson(PARTICIPANTS_KEY, _participants);
+
     return existing;
   }
+
   const entry: PostParticipation = {
     id: `pp_${Math.random().toString(36).slice(2, 9)}`,
     postId,
@@ -425,24 +962,35 @@ export async function joinPost(postId: string, responseMessage?: string): Promis
     responseMessage: responseMessage || undefined,
     createdAt: new Date().toISOString(),
   };
+
   _participants.push(entry);
   saveJson(PARTICIPANTS_KEY, _participants);
+
   return entry;
 }
 
 export async function leavePost(postId: string): Promise<boolean> {
-  const me = _getMe();
+  const me = await getCurrentUser();
   const meId = me?.id ?? "u_me";
-  const idx = _participants.findIndex((p) => p.postId === postId && p.userId === meId);
+
+  const idx = _participants.findIndex(
+    (p) => p.postId === postId && p.userId === meId,
+  );
+
   if (idx === -1) return false;
+
   _participants.splice(idx, 1);
   saveJson(PARTICIPANTS_KEY, _participants);
+
   return true;
 }
 
-export async function isCurrentUserParticipating(postId: string): Promise<boolean> {
-  const me = _getMe();
+export async function isCurrentUserParticipating(
+  postId: string,
+): Promise<boolean> {
+  const me = await getCurrentUser();
   const meId = me?.id ?? "u_me";
+
   return _participants.some((p) => p.postId === postId && p.userId === meId);
 }
 
@@ -454,11 +1002,10 @@ export async function getParticipantCount(postId: string): Promise<number> {
 
 export async function listPools(): Promise<WaitingPool[]> {
   const today = new Date().toISOString().split("T")[0];
+
   return [..._pools]
     .filter((p) => p.date >= today)
-    .sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
-  );
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 }
 
 export async function getPool(id: string): Promise<WaitingPool | undefined> {
@@ -468,7 +1015,8 @@ export async function getPool(id: string): Promise<WaitingPool | undefined> {
 export async function createPool(
   input: Omit<WaitingPool, "id" | "authorId" | "memberIds" | "createdAt">,
 ): Promise<WaitingPool> {
-  const me = _getMe();
+  const me = await getCurrentUser();
+
   const pool: WaitingPool = {
     ...input,
     id: `pool_${Math.random().toString(36).slice(2, 9)}`,
@@ -476,16 +1024,17 @@ export async function createPool(
     memberIds: [me?.id ?? "u_me"],
     createdAt: new Date().toISOString(),
   };
+
   _pools = [pool, ..._pools];
   saveJson(POOLS_KEY, _pools);
 
-  // auto-create a membership record for the author
   const membership: PoolMembership = {
     id: `pm_${Math.random().toString(36).slice(2, 9)}`,
     poolId: pool.id,
     userId: me?.id ?? "u_me",
     joinedAt: new Date().toISOString(),
   };
+
   _poolMembers = [..._poolMembers, membership];
   saveJson(POOL_MEMBERS_KEY, _poolMembers);
 
@@ -493,20 +1042,26 @@ export async function createPool(
 }
 
 export async function deletePool(id: string): Promise<boolean> {
-  const me = _getMe();
+  const me = await getCurrentUser();
+
   const idx = _pools.findIndex((p) => p.id === id && p.authorId === me?.id);
+
   if (idx === -1) return false;
+
   _pools.splice(idx, 1);
   saveJson(POOLS_KEY, _pools);
+
   return true;
 }
 
 export async function joinPool(poolId: string): Promise<boolean> {
-  const me = _getMe();
+  const me = await getCurrentUser();
   if (!me) return false;
+
   const already = _poolMembers.find(
     (m) => m.poolId === poolId && m.userId === me.id,
   );
+
   if (already) return false;
 
   const membership: PoolMembership = {
@@ -515,39 +1070,47 @@ export async function joinPool(poolId: string): Promise<boolean> {
     userId: me.id,
     joinedAt: new Date().toISOString(),
   };
+
   _poolMembers = [..._poolMembers, membership];
   saveJson(POOL_MEMBERS_KEY, _poolMembers);
 
-  // update memberIds on the pool itself
   const pool = _pools.find((p) => p.id === poolId);
+
   if (pool && !pool.memberIds.includes(me.id)) {
     pool.memberIds = [...pool.memberIds, me.id];
     saveJson(POOLS_KEY, _pools);
   }
+
   return true;
 }
 
 export async function leavePool(poolId: string): Promise<boolean> {
-  const me = _getMe();
+  const me = await getCurrentUser();
   if (!me) return false;
+
   const idx = _poolMembers.findIndex(
     (m) => m.poolId === poolId && m.userId === me.id,
   );
+
   if (idx === -1) return false;
+
   _poolMembers.splice(idx, 1);
   saveJson(POOL_MEMBERS_KEY, _poolMembers);
 
   const pool = _pools.find((p) => p.id === poolId);
+
   if (pool) {
     pool.memberIds = pool.memberIds.filter((id) => id !== me.id);
     saveJson(POOLS_KEY, _pools);
   }
+
   return true;
 }
 
 export async function isInPool(poolId: string): Promise<boolean> {
-  const me = _getMe();
+  const me = await getCurrentUser();
   if (!me) return false;
+
   return _poolMembers.some((m) => m.poolId === poolId && m.userId === me.id);
 }
 
@@ -555,11 +1118,27 @@ export async function listPoolMembers(poolId: string): Promise<User[]> {
   const memberIds = _poolMembers
     .filter((m) => m.poolId === poolId)
     .map((m) => m.userId);
-  return _users.filter((u) => memberIds.includes(u.id));
+
+  if (memberIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, username, display_name")
+    .in("id", memberIds);
+
+  if (error) {
+    console.error("List pool members failed:", error);
+    return [];
+  }
+
+  return (data ?? []).map(mapProfileToUser);
 }
 
-export async function listPoolsByGroup(groupId: string): Promise<WaitingPool[]> {
+export async function listPoolsByGroup(
+  groupId: string,
+): Promise<WaitingPool[]> {
   const today = new Date().toISOString().split("T")[0];
+
   return _pools
     .filter((p) => p.visibleToGroupId === groupId && p.date >= today)
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -567,13 +1146,22 @@ export async function listPoolsByGroup(groupId: string): Promise<WaitingPool[]> 
 
 export async function updatePool(
   id: string,
-  input: Partial<Pick<WaitingPool, "title" | "description" | "date" | "startTime" | "endTime" | "minPeople">>,
+  input: Partial<
+    Pick<
+      WaitingPool,
+      "title" | "description" | "date" | "startTime" | "endTime" | "minPeople"
+    >
+  >,
 ): Promise<WaitingPool | undefined> {
-  const me = _getMe();
+  const me = await getCurrentUser();
+
   const idx = _pools.findIndex((p) => p.id === id && p.authorId === me?.id);
+
   if (idx === -1) return undefined;
+
   _pools[idx] = { ..._pools[idx], ...input };
   saveJson(POOLS_KEY, _pools);
+
   return _pools[idx];
 }
 
@@ -596,9 +1184,15 @@ export async function saveUserLocation(loc: UserLocation): Promise<void> {
 
 export async function suggestToGroup(
   groupId: string,
-  card: { title: string; type: ActivityType; area: string; description: string },
+  card: {
+    title: string;
+    type: ActivityType;
+    area: string;
+    description: string;
+  },
 ): Promise<GroupSuggestion> {
-  const me = _getMe();
+  const me = await getCurrentUser();
+
   const suggestion: GroupSuggestion = {
     id: `sug_${Math.random().toString(36).slice(2, 9)}`,
     groupId,
@@ -609,29 +1203,47 @@ export async function suggestToGroup(
     cardDescription: card.description,
     createdAt: new Date().toISOString(),
   };
+
   _suggestions = [suggestion, ..._suggestions];
   saveJson(SUGGESTIONS_KEY, _suggestions);
+
   return suggestion;
 }
 
-export async function listGroupSuggestions(groupId: string): Promise<GroupSuggestion[]> {
+export async function listGroupSuggestions(
+  groupId: string,
+): Promise<GroupSuggestion[]> {
   const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
   return _suggestions
-    .filter((s) => s.groupId === groupId && new Date(s.createdAt).getTime() > cutoff)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .filter(
+      (s) =>
+        s.groupId === groupId && new Date(s.createdAt).getTime() > cutoff,
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
 }
 
-export async function voteOnSuggestion(suggestionId: string, vote: "up" | "down"): Promise<void> {
-  const me = _getMe();
+export async function voteOnSuggestion(
+  suggestionId: string,
+  vote: "up" | "down",
+): Promise<void> {
+  const me = await getCurrentUser();
   if (!me) return;
+
   const idx = _suggestions.findIndex((s) => s.id === suggestionId);
   if (idx === -1) return;
+
   const votes = { ...(_suggestions[idx].votes ?? {}) };
+
   if (votes[me.id] === vote) {
-    delete votes[me.id]; // tapping same button again removes the vote
+    delete votes[me.id];
   } else {
     votes[me.id] = vote;
   }
+
   _suggestions[idx] = { ..._suggestions[idx], votes };
   saveJson(SUGGESTIONS_KEY, _suggestions);
 }

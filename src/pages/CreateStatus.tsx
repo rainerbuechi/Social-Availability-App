@@ -15,8 +15,6 @@ import { STATUS_META, STATUS_ORDER } from "@/lib/status";
 import { FriendGroup, LocationPrecision, StatusType } from "@/lib/types";
 import { createPost, getPost, listGroups, updatePost } from "@/lib/api";
 
-const RED_ACCENT = "#DA2C43";
-
 const pad = (n: number) => n.toString().padStart(2, "0");
 const toLocalTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
@@ -100,13 +98,17 @@ export default function CreateStatus() {
   const [groups, setGroups] = useState<FriendGroup[]>([]);
   const [groupId, setGroupId] = useState<string>("");
   const [loaded, setLoaded] = useState(!editId);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     listGroups().then((gs) => {
-      setGroups(gs);
-      if (!editId && gs[0]) setGroupId(gs[0].id);
+      const realGroups = gs.filter(
+        (group) => group.name.trim().toLowerCase() !== "everyone",
+      );
+
+      setGroups(realGroups);
     });
-  }, [editId]);
+  }, []);
 
   useEffect(() => {
     if (!editId) return;
@@ -129,7 +131,7 @@ export default function CreateStatus() {
       setStart(toLocalTime(new Date(post.startTime)));
       setEnd(toLocalTime(postEndDate));
       setLocationName(post.locationName ?? "");
-      setGroupId(post.visibleToGroupId);
+      setGroupId(post.visibleToGroupId ?? "");
       setLoaded(true);
     });
   }, [editId, navigate]);
@@ -153,8 +155,6 @@ export default function CreateStatus() {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-
-    if (!groupId) return;
 
     if (!selectedDate) {
       toast.error("Please choose a date.");
@@ -183,18 +183,27 @@ export default function CreateStatus() {
       endTime: endDate.toISOString(),
       locationName: locationName.trim() || undefined,
       locationPrecision: "exact" as LocationPrecision,
-      visibleToGroupId: groupId,
+      visibleToGroupId: groupId || "",
     };
 
-    if (editId) {
-      await updatePost(editId, payload);
-      toast.success("Post updated!");
-    } else {
-      await createPost(payload);
-      toast.success("You're down!");
-    }
+    setIsSaving(true);
 
-    navigate("/feed");
+    try {
+      if (editId) {
+        await updatePost(editId, payload);
+        toast.success("Post updated!");
+      } else {
+        await createPost(payload);
+        toast.success("You're down!");
+      }
+
+      navigate("/feed");
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Could not save post");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!loaded) return null;
@@ -309,7 +318,8 @@ export default function CreateStatus() {
                 day: "relative flex h-10 w-10 items-center justify-center rounded-2xl text-sm transition-colors hover:bg-primary-soft hover:text-primary",
                 day_selected:
                   "bg-[#DA2C43] text-white hover:bg-[#DA2C43] hover:text-white focus:bg-[#DA2C43] focus:text-white",
-                day_today: "border border-[#DA2C43]/50 font-semibold text-[#DA2C43]",
+                day_today:
+                  "border border-[#DA2C43]/50 font-semibold text-[#DA2C43]",
                 day_disabled: "text-muted-foreground/30 opacity-40",
                 day_outside: "text-muted-foreground/30 opacity-40",
               }}
@@ -365,6 +375,26 @@ export default function CreateStatus() {
           <Label>Visible to</Label>
 
           <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setGroupId("")}
+              className={cn(
+                "flex w-full items-center justify-between rounded-2xl border-2 p-3 text-left shadow-sm transition-colors",
+                groupId === ""
+                  ? "border-[#DA2C43] bg-[#DA2C43]/10"
+                  : "border-border bg-card hover:border-primary/35 hover:bg-primary-soft/70",
+              )}
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <span className="text-lg">👥</span>
+                All friends
+              </span>
+
+              <span className="text-xs text-muted-foreground">
+                Your accepted friends
+              </span>
+            </button>
+
             {groups.map((group) => {
               const active = group.id === groupId;
 
@@ -396,9 +426,10 @@ export default function CreateStatus() {
 
         <Button
           type="submit"
+          disabled={isSaving}
           className="h-12 w-full rounded-full bg-[#DA2C43] text-base font-semibold text-white shadow-sm transition-colors hover:bg-[#c9273c]"
         >
-          {editId ? "Save changes" : "I'm down"}
+          {isSaving ? "Saving..." : editId ? "Save changes" : "I'm down"}
         </Button>
       </form>
     </div>

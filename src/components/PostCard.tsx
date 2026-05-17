@@ -36,6 +36,7 @@ interface Props {
 
 export default function PostCard({ post, onDeleted }: Props) {
   const navigate = useNavigate();
+
   const [author, setAuthor] = useState<User | undefined>();
   const [group, setGroup] = useState<FriendGroup | undefined>();
   const [isOwn, setIsOwn] = useState(false);
@@ -45,9 +46,13 @@ export default function PostCard({ post, onDeleted }: Props) {
   useEffect(() => {
     getUser(post.authorId).then(setAuthor);
 
-    listGroups().then((gs) =>
-      setGroup(gs.find((g) => g.id === post.visibleToGroupId)),
-    );
+    if (post.visibleToGroupId) {
+      listGroups().then((gs) =>
+        setGroup(gs.find((g) => g.id === post.visibleToGroupId)),
+      );
+    } else {
+      setGroup(undefined);
+    }
 
     getCurrentUser().then((me) => setIsOwn(me?.id === post.authorId));
     getParticipantCount(post.id).then(setParticipantCount);
@@ -73,7 +78,7 @@ export default function PostCard({ post, onDeleted }: Props) {
     return post.locationName;
   })();
 
-  const audienceLabel = group ? `${group.emoji} ${group.name}` : "🌎 Everyone";
+  const audienceLabel = group ? `${group.emoji} ${group.name}` : "👥 All friends";
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -83,7 +88,10 @@ export default function PostCard({ post, onDeleted }: Props) {
     if (ok) {
       toast.success("Post deleted");
       onDeleted?.();
+      return;
     }
+
+    toast.error("Could not delete post");
   };
 
   const handleEdit = (e: React.MouseEvent) => {
@@ -111,7 +119,7 @@ export default function PostCard({ post, onDeleted }: Props) {
           </p>
 
           <p className="truncate text-sm text-muted-foreground">
-            @{author?.username}
+            @{author?.username ?? "user"}
           </p>
         </div>
 
