@@ -209,8 +209,8 @@ export default function CreateStatus() {
   if (!loaded) return null;
 
   return (
-    <div className="min-h-full overflow-x-hidden bg-muted/20">
-      <header className="safe-top sticky top-0 z-30 border-b border-border/70 bg-background/95 px-4 py-4 shadow-sm backdrop-blur">
+    <div className="flex h-full flex-col overflow-hidden bg-muted/20">
+      <header className="safe-top shrink-0 border-b border-border/70 bg-background/95 px-4 py-4 shadow-sm backdrop-blur">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -233,7 +233,10 @@ export default function CreateStatus() {
         </div>
       </header>
 
-      <form onSubmit={onSubmit} className="space-y-6 p-4 pb-24">
+      <form
+        onSubmit={onSubmit}
+        className="no-scrollbar flex-1 space-y-6 overflow-y-auto p-4 pb-28"
+      >
         <section>
           <Label className="mb-2 block">Status</Label>
 

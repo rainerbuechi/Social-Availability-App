@@ -41,7 +41,9 @@ export default function Groups() {
   const [groups, setGroups] = useState<FriendGroup[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [friends, setFriends] = useState<User[]>([]);
-  const [latestMessages, setLatestMessages] = useState<Record<string, ChatMessage>>({});
+  const [latestMessages, setLatestMessages] = useState<
+    Record<string, ChatMessage>
+  >({});
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<FriendGroup | null>(null);
@@ -101,6 +103,7 @@ export default function Groups() {
 
   const toggleMember = (id: string) => {
     if (id === meId) return;
+
     setFormMembers((prev) =>
       prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id],
     );
@@ -117,7 +120,6 @@ export default function Groups() {
       return;
     }
 
-    // Always ensure creator is included
     const members =
       meId && !formMembers.includes(meId)
         ? [meId, ...formMembers]
@@ -173,8 +175,8 @@ export default function Groups() {
   };
 
   return (
-    <div className="min-h-full overflow-x-hidden bg-muted/20">
-      <header className="safe-top sticky top-0 z-30 border-b border-border/70 bg-background/95 px-4 py-4 shadow-sm backdrop-blur">
+    <div className="flex h-full flex-col overflow-hidden bg-muted/20">
+      <header className="safe-top shrink-0 border-b border-border/70 bg-background/95 px-4 py-4 shadow-sm backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-extrabold tracking-tight">
@@ -196,7 +198,7 @@ export default function Groups() {
         </div>
       </header>
 
-      <ul className="space-y-3 p-4 pb-24">
+      <ul className="no-scrollbar flex-1 space-y-3 overflow-y-auto overflow-x-hidden p-4 pb-28">
         {groups.length === 0 ? (
           <li className="rounded-3xl border border-dashed border-[#DA2C43]/30 bg-card p-6 text-center text-muted-foreground shadow-sm">
             <p>No groups yet.</p>
@@ -364,21 +366,23 @@ export default function Groups() {
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Tap the field and use your phone's emoji keyboard to pick any emoji.
+                Tap the field and use your phone's emoji keyboard to pick any
+                emoji.
               </p>
             </div>
 
             <div className="space-y-2">
               <Label>Members</Label>
 
-              <div className="max-h-40 space-y-1 overflow-y-auto">
-                {/* Locked "You" row — always included */}
+              <div className="no-scrollbar max-h-40 space-y-1 overflow-y-auto">
                 {meId && (
                   <div className="flex w-full cursor-not-allowed items-center gap-2 rounded-2xl bg-[#DA2C43]/10 px-3 py-2 text-sm opacity-80">
                     <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 border-[#DA2C43] bg-[#DA2C43]">
                       <span className="text-[10px] text-white">✓</span>
                     </div>
+
                     <span className="text-foreground">You</span>
+
                     <span className="ml-auto text-xs text-muted-foreground">
                       always included
                     </span>

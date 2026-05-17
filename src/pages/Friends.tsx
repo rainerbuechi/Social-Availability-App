@@ -151,7 +151,8 @@ export default function Friends() {
   const friendItems = useMemo<FriendListItem[]>(() => {
     return friendships
       .map((friendship) => {
-        const otherId = friendship.from_id === meId ? friendship.to_id : friendship.from_id;
+        const otherId =
+          friendship.from_id === meId ? friendship.to_id : friendship.from_id;
         const profile = profilesById[otherId];
 
         if (!profile) return null;
@@ -165,12 +166,16 @@ export default function Friends() {
       .filter(Boolean) as FriendListItem[];
   }, [friendships, profilesById, meId]);
 
-  const accepted = friendItems.filter((item) => item.friendship.status === "accepted");
+  const accepted = friendItems.filter(
+    (item) => item.friendship.status === "accepted",
+  );
   const incomingPending = friendItems.filter(
-    (item) => item.friendship.status === "pending" && item.direction === "incoming",
+    (item) =>
+      item.friendship.status === "pending" && item.direction === "incoming",
   );
   const outgoingPending = friendItems.filter(
-    (item) => item.friendship.status === "pending" && item.direction === "outgoing",
+    (item) =>
+      item.friendship.status === "pending" && item.direction === "outgoing",
   );
 
   const friendshipForProfile = (profileId: string) => {
@@ -266,8 +271,12 @@ export default function Friends() {
           </div>
 
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{profile.display_name}</p>
-            <p className="truncate text-xs text-muted-foreground">@{profile.username}</p>
+            <p className="truncate text-sm font-semibold">
+              {profile.display_name}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              @{profile.username}
+            </p>
           </div>
         </div>
 
@@ -317,8 +326,12 @@ export default function Friends() {
           </div>
 
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{profile.display_name}</p>
-            <p className="truncate text-xs text-muted-foreground">@{profile.username}</p>
+            <p className="truncate text-sm font-semibold">
+              {profile.display_name}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              @{profile.username}
+            </p>
           </div>
         </div>
 
@@ -340,8 +353,8 @@ export default function Friends() {
   };
 
   return (
-    <div>
-      <header className="safe-top sticky top-0 z-30 border-b border-border bg-background/90 px-5 py-4 backdrop-blur">
+    <div className="flex h-full flex-col overflow-hidden bg-muted/20">
+      <header className="safe-top shrink-0 border-b border-border bg-background/90 px-5 py-4 shadow-sm backdrop-blur">
         <h1 className="text-2xl font-bold tracking-tight">Friends</h1>
 
         <p className="mt-1 text-xs text-muted-foreground">
@@ -360,7 +373,7 @@ export default function Friends() {
         </div>
       </header>
 
-      <div className="space-y-6 p-4">
+      <div className="no-scrollbar flex-1 space-y-6 overflow-y-auto p-4 pb-28">
         {query.trim() ? (
           <section>
             <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -372,13 +385,17 @@ export default function Friends() {
             ) : searchResults.length === 0 ? (
               <p className="text-sm text-muted-foreground">No users found</p>
             ) : (
-              <ul className="space-y-2">{searchResults.map(renderSearchResult)}</ul>
+              <ul className="space-y-2">
+                {searchResults.map(renderSearchResult)}
+              </ul>
             )}
           </section>
         ) : (
           <>
             {isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading friends...</p>
+              <p className="text-sm text-muted-foreground">
+                Loading friends...
+              </p>
             ) : (
               <>
                 {incomingPending.length > 0 && (
@@ -388,7 +405,9 @@ export default function Friends() {
                       Requests · {incomingPending.length}
                     </h2>
 
-                    <ul className="space-y-2">{incomingPending.map(renderFriendItem)}</ul>
+                    <ul className="space-y-2">
+                      {incomingPending.map(renderFriendItem)}
+                    </ul>
                   </section>
                 )}
 
@@ -399,7 +418,9 @@ export default function Friends() {
                       Friends · {accepted.length}
                     </h2>
 
-                    <ul className="space-y-2">{accepted.map(renderFriendItem)}</ul>
+                    <ul className="space-y-2">
+                      {accepted.map(renderFriendItem)}
+                    </ul>
                   </section>
                 )}
 
@@ -410,7 +431,9 @@ export default function Friends() {
                       Sent requests · {outgoingPending.length}
                     </h2>
 
-                    <ul className="space-y-2">{outgoingPending.map(renderFriendItem)}</ul>
+                    <ul className="space-y-2">
+                      {outgoingPending.map(renderFriendItem)}
+                    </ul>
                   </section>
                 )}
 
@@ -438,7 +461,8 @@ export default function Friends() {
             </AlertDialogTitle>
 
             <AlertDialogDescription>
-              They'll be removed from your friends list. You can add them back anytime.
+              They'll be removed from your friends list. You can add them back
+              anytime.
             </AlertDialogDescription>
           </AlertDialogHeader>
 

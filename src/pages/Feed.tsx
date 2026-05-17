@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 import PostCard from "@/components/PostCard";
 import { Calendar } from "@/components/ui/calendar";
@@ -159,8 +159,8 @@ export default function Feed() {
     : "/create";
 
   return (
-    <div className="min-h-full overflow-x-hidden bg-muted/20">
-      <header className="safe-top sticky top-0 z-30 border-b border-border/70 bg-background/95 px-4 py-4 shadow-sm backdrop-blur">
+    <div className="flex h-full flex-col overflow-hidden bg-muted/20">
+      <header className="safe-top shrink-0 border-b border-border/70 bg-background/95 px-4 py-4 shadow-sm backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-2xl font-extrabold tracking-tight">
             Down<span className="text-[#DA2C43]">?</span>
@@ -205,7 +205,7 @@ export default function Feed() {
       </header>
 
       {view === "activity" && (
-        <div className="space-y-7 p-4 pb-24">
+        <div className="no-scrollbar flex-1 space-y-7 overflow-y-auto p-4 pb-28">
           {futurePosts.length === 0 ? (
             <div className="py-20 text-center text-muted-foreground">
               No one's down yet. Be the first 👀
@@ -233,7 +233,7 @@ export default function Feed() {
       )}
 
       {view === "calendar" && (
-        <div className="w-full overflow-x-hidden p-4 pb-24">
+        <div className="no-scrollbar flex-1 overflow-y-auto overflow-x-hidden p-4 pb-28">
           <div className="mx-auto w-full max-w-sm rounded-3xl border border-border bg-card p-3 shadow-sm">
             <Calendar
               mode="single"
@@ -261,7 +261,7 @@ export default function Feed() {
                 caption_label: "text-sm font-semibold",
                 nav: "flex items-center gap-1",
                 nav_button:
-                  "h-8 w-8 rounded-full border border-border bg-background p-0 opacity-80 hover:opacity-100",
+                  "inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background p-0 leading-none opacity-80 hover:opacity-100 [&_svg]:block [&_svg]:h-5 [&_svg]:w-5 [&_svg]:shrink-0",
                 nav_button_previous: "absolute left-1",
                 nav_button_next: "absolute right-1",
                 table: "w-full border-collapse space-y-1",
@@ -273,11 +273,22 @@ export default function Feed() {
                 day: "relative flex h-10 w-10 items-center justify-center rounded-2xl text-sm transition-colors hover:bg-primary-soft hover:text-primary",
                 day_selected:
                   "bg-[#DA2C43] text-white hover:bg-[#DA2C43] hover:text-white focus:bg-[#DA2C43] focus:text-white",
-                day_today: "border border-[#DA2C43]/50 font-semibold text-[#DA2C43]",
+                day_today:
+                  "border border-[#DA2C43]/50 font-semibold text-[#DA2C43]",
                 day_disabled: "text-muted-foreground/30 opacity-40",
                 day_outside: "text-muted-foreground/30 opacity-40",
               }}
               components={{
+                IconLeft: () => (
+                  <span className="flex h-full w-full items-center justify-center">
+                    <ChevronLeft className="block h-5 w-5" />
+                  </span>
+                ),
+                IconRight: () => (
+                  <span className="flex h-full w-full items-center justify-center">
+                    <ChevronRight className="block h-5 w-5" />
+                  </span>
+                ),
                 DayContent: ({ date }) => {
                   const postsOnDay =
                     postsByDateKey.get(date.toDateString()) ?? [];

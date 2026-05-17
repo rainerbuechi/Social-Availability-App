@@ -12,11 +12,21 @@ import {
   Waves,
 } from "lucide-react";
 import {
-  getGroup, listGroupMembers, listPostsByGroup,
-  getRecentMessagesForGroup, getUser,
-  createPool, deletePool, joinPool, leavePool,
-  isInPool, listPoolsByGroup, getCurrentUser,
-  listGroupSuggestions, voteOnSuggestion, deleteSuggestion,
+  getGroup,
+  listGroupMembers,
+  listPostsByGroup,
+  getRecentMessagesForGroup,
+  getUser,
+  createPool,
+  deletePool,
+  joinPool,
+  leavePool,
+  isInPool,
+  listPoolsByGroup,
+  getCurrentUser,
+  listGroupSuggestions,
+  voteOnSuggestion,
+  deleteSuggestion,
 } from "@/lib/api";
 import {
   AvailabilityPost,
@@ -51,7 +61,9 @@ export default function GroupDetail() {
   const [members, setMembers] = useState<User[]>([]);
   const [posts, setPosts] = useState<AvailabilityPost[]>([]);
   const [recentMessages, setRecentMessages] = useState<ChatMessage[]>([]);
-  const [messageAuthors, setMessageAuthors] = useState<Record<string, string>>({});
+  const [messageAuthors, setMessageAuthors] = useState<Record<string, string>>(
+    {},
+  );
   const [pools, setPools] = useState<WaitingPool[]>([]);
   const [poolJoined, setPoolJoined] = useState<Record<string, boolean>>({});
   const [me, setMe] = useState<User | null>(null);
@@ -163,385 +175,422 @@ export default function GroupDetail() {
   if (!group) return null;
 
   return (
-    <div className="min-h-full space-y-4 overflow-x-hidden bg-muted/20 p-4 pb-24">
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => navigate("/groups")}
-          className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary-soft/70 hover:text-primary"
-          aria-label="Back"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </button>
+    <div className="flex h-full flex-col overflow-hidden bg-muted/20">
+      <header className="safe-top shrink-0 border-b border-border/70 bg-background/95 px-4 py-3 shadow-sm backdrop-blur">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigate("/groups")}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary-soft/70 hover:text-primary"
+            aria-label="Back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
 
-        <div className="ml-3 flex-1">
-          <h1 className="text-xl font-extrabold tracking-tight">
-            {group.emoji} {group.name}
-          </h1>
-          <p className="text-xs text-muted-foreground">{members.length} members</p>
-        </div>
+          <div className="ml-3 min-w-0 flex-1">
+            <h1 className="truncate text-xl font-extrabold tracking-tight">
+              {group.emoji} {group.name}
+            </h1>
 
-        <button
-          onClick={() => navigate(`/groups/${groupId}/chat`)}
-          className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary-soft/70 hover:text-primary"
-          aria-label="Group chat"
-        >
-          <MessageCircle className="h-5 w-5" />
-        </button>
-      </div>
-
-      <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Members
-        </p>
-
-        <div className="flex flex-wrap gap-2">
-          {members.map((m) => {
-            const initials = m.name
-              .split(" ")
-              .map((p) => p[0])
-              .slice(0, 2)
-              .join("")
-              .toUpperCase();
-
-            return (
-              <div
-                key={m.id}
-                className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm shadow-sm"
-              >
-                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-soft text-[10px] font-semibold text-primary">
-                  {initials}
-                </div>
-                {m.name}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            <Waves className="h-3.5 w-3.5" />
-            Waiting Pools
-          </p>
+            <p className="text-xs text-muted-foreground">
+              {members.length} members
+            </p>
+          </div>
 
           <button
-            onClick={() => setShowCreate((v) => !v)}
-            className="flex items-center gap-1 rounded-full bg-[#DA2C43] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#c9273c]"
+            onClick={() => navigate(`/groups/${groupId}/chat`)}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary-soft/70 hover:text-primary"
+            aria-label="Group chat"
           >
-            <Plus className="h-3.5 w-3.5" />
-            {showCreate ? "Cancel" : "New Pool"}
+            <MessageCircle className="h-5 w-5" />
           </button>
         </div>
+      </header>
 
-        {showCreate && (
-          <div className="mb-3 space-y-3 rounded-3xl border border-border bg-card p-4 shadow-sm">
-            <Input
-              placeholder='e.g. "Down for anything Saturday 🤙"'
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
-            />
-
-            <Input
-              placeholder="Vibe / description (optional)"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
-            />
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">
-                  Date *
-                </label>
-
-                <Input
-                  type="date"
-                  min={todayStr()}
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">
-                  Min people
-                </label>
-
-                <Input
-                  type="number"
-                  min={2}
-                  max={20}
-                  value={minPeople}
-                  onChange={(e) => setMinPeople(Number(e.target.value))}
-                  className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">
-                  From (optional)
-                </label>
-
-                <Input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs text-muted-foreground">
-                  To (optional)
-                </label>
-
-                <Input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
-                />
-              </div>
-            </div>
-
-            <Button
-              className="h-11 w-full rounded-full bg-[#DA2C43] font-semibold text-white hover:bg-[#c9273c]"
-              onClick={handleCreatePool}
-            >
-              Create Pool
-            </Button>
-          </div>
-        )}
-
-        {pools.length === 0 && !showCreate ? (
-          <p className="rounded-3xl border border-dashed border-[#DA2C43]/30 bg-card p-4 text-sm text-muted-foreground shadow-sm">
-            No pools yet — create one to see who's free.
+      <div className="no-scrollbar flex-1 space-y-4 overflow-y-auto overflow-x-hidden p-4 pb-28">
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Members
           </p>
-        ) : (
-          <div className="space-y-2">
-            {pools.map((pool) => {
-              const isOwn = pool.authorId === me?.id;
-              const inPool = poolJoined[pool.id] ?? false;
-              const ready = pool.memberIds.length >= pool.minPeople;
+
+          <div className="flex flex-wrap gap-2">
+            {members.map((m) => {
+              const initials = m.name
+                .split(" ")
+                .map((p) => p[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase();
 
               return (
                 <div
-                  key={pool.id}
-                  className="cursor-pointer space-y-2 rounded-3xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-primary-soft/70"
-                  onClick={() => navigate(`/pools/${pool.id}`)}
+                  key={m.id}
+                  className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm shadow-sm"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{pool.title}</p>
-
-                      {pool.description && (
-                        <p className="text-xs text-muted-foreground">
-                          {pool.description}
-                        </p>
-                      )}
-                    </div>
-
-                    {isOwn && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeletePool(pool.id);
-                        }}
-                        className="shrink-0 text-muted-foreground transition-colors hover:text-destructive"
-                        aria-label="Delete pool"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-soft text-[10px] font-semibold text-primary">
+                    {initials}
                   </div>
-
-                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {formatPoolDate(pool.date)}
-                    </span>
-
-                    {pool.startTime && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {pool.startTime}
-                        {pool.endTime ? ` – ${pool.endTime}` : ""}
-                      </span>
-                    )}
-
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      {pool.memberIds.length}/{pool.minPeople} in
-                    </span>
-                  </div>
-
-                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-[#DA2C43] transition-all"
-                      style={{
-                        width: `${Math.min(
-                          (pool.memberIds.length / pool.minPeople) * 100,
-                          100,
-                        )}%`,
-                      }}
-                    />
-                  </div>
-
-                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                    {inPool ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 rounded-full border-border bg-card hover:bg-primary-soft/70 hover:text-primary"
-                        onClick={() => handleLeave(pool.id)}
-                      >
-                        Leave
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        className="flex-1 rounded-full bg-[#DA2C43] text-white hover:bg-[#c9273c]"
-                        onClick={() => handleJoin(pool.id)}
-                      >
-                        I'm down
-                      </Button>
-                    )}
-
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="gap-1 rounded-full text-muted-foreground hover:bg-primary-soft/70 hover:text-primary"
-                      onClick={() => navigate(`/pools/${pool.id}`)}
-                    >
-                      Details <ChevronRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-
-                  {ready && (
-                    <p className="text-center text-xs font-semibold text-[#DA2C43]">
-                      🎉 Enough people — open chat to decide what to do!
-                    </p>
-                  )}
+                  {m.name}
                 </div>
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
 
-      {suggestions.length > 0 && (
         <div>
-          <p className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            ✨ Suggestions
-          </p>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <Waves className="h-3.5 w-3.5" />
+              Waiting Pools
+            </p>
 
-          <div className="space-y-2">
-            {suggestions.map((s) => {
-              const ups = Object.values(s.votes ?? {}).filter((v) => v === "up").length;
-              const downs = Object.values(s.votes ?? {}).filter((v) => v === "down").length;
-              const myVote = s.votes?.[me?.id ?? ""];
-              const isOwn = s.fromUserId === me?.id;
-              return (
-                <div key={s.id} className="rounded-2xl border border-border bg-card p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm leading-snug">{s.cardTitle}</p>
-                      <p className="text-xs text-muted-foreground">{s.cardArea} · {s.cardType}</p>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        onClick={async () => { await voteOnSuggestion(s.id, "up"); refresh(); }}
-                        className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                          myVote === "up"
-                            ? "bg-green-500 text-white border-green-500"
-                            : "border-border text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        ✓{ups > 0 && <span>{ups}</span>}
-                      </button>
-                      <button
-                        onClick={async () => { await voteOnSuggestion(s.id, "down"); refresh(); }}
-                        className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                          myVote === "down"
-                            ? "bg-red-500 text-white border-red-500"
-                            : "border-border text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        ✕{downs > 0 && <span>{downs}</span>}
-                      </button>
+            <button
+              onClick={() => setShowCreate((v) => !v)}
+              className="flex items-center gap-1 rounded-full bg-[#DA2C43] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#c9273c]"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {showCreate ? "Cancel" : "New Pool"}
+            </button>
+          </div>
+
+          {showCreate && (
+            <div className="mb-3 space-y-3 rounded-3xl border border-border bg-card p-4 shadow-sm">
+              <Input
+                placeholder='e.g. "Down for anything Saturday 🤙"'
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
+              />
+
+              <Input
+                placeholder="Vibe / description (optional)"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">
+                    Date *
+                  </label>
+
+                  <Input
+                    type="date"
+                    min={todayStr()}
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">
+                    Min people
+                  </label>
+
+                  <Input
+                    type="number"
+                    min={2}
+                    max={20}
+                    value={minPeople}
+                    onChange={(e) => setMinPeople(Number(e.target.value))}
+                    className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">
+                    From (optional)
+                  </label>
+
+                  <Input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">
+                    To (optional)
+                  </label>
+
+                  <Input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
+                  />
+                </div>
+              </div>
+
+              <Button
+                className="h-11 w-full rounded-full bg-[#DA2C43] font-semibold text-white hover:bg-[#c9273c]"
+                onClick={handleCreatePool}
+              >
+                Create Pool
+              </Button>
+            </div>
+          )}
+
+          {pools.length === 0 && !showCreate ? (
+            <p className="rounded-3xl border border-dashed border-[#DA2C43]/30 bg-card p-4 text-sm text-muted-foreground shadow-sm">
+              No pools yet — create one to see who's free.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {pools.map((pool) => {
+                const isOwn = pool.authorId === me?.id;
+                const inPool = poolJoined[pool.id] ?? false;
+                const ready = pool.memberIds.length >= pool.minPeople;
+
+                return (
+                  <div
+                    key={pool.id}
+                    className="cursor-pointer space-y-2 rounded-3xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-primary-soft/70"
+                    onClick={() => navigate(`/pools/${pool.id}`)}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">
+                          {pool.title}
+                        </p>
+
+                        {pool.description && (
+                          <p className="text-xs text-muted-foreground">
+                            {pool.description}
+                          </p>
+                        )}
+                      </div>
+
                       {isOwn && (
                         <button
-                          onClick={async () => { await deleteSuggestion(s.id); refresh(); }}
-                          className="text-muted-foreground hover:text-destructive transition-colors"
-                          title="Remove suggestion"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeletePool(pool.id);
+                          }}
+                          className="shrink-0 text-muted-foreground transition-colors hover:text-destructive"
+                          aria-label="Delete pool"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
                     </div>
+
+                    <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {formatPoolDate(pool.date)}
+                      </span>
+
+                      {pool.startTime && (
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {pool.startTime}
+                          {pool.endTime ? ` – ${pool.endTime}` : ""}
+                        </span>
+                      )}
+
+                      <span className="flex items-center gap-1">
+                        <Users className="h-3 w-3" />
+                        {pool.memberIds.length}/{pool.minPeople} in
+                      </span>
+                    </div>
+
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-[#DA2C43] transition-all"
+                        style={{
+                          width: `${Math.min(
+                            (pool.memberIds.length / pool.minPeople) * 100,
+                            100,
+                          )}%`,
+                        }}
+                      />
+                    </div>
+
+                    <div
+                      className="flex gap-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {inPool ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 rounded-full border-border bg-card hover:bg-primary-soft/70 hover:text-primary"
+                          onClick={() => handleLeave(pool.id)}
+                        >
+                          Leave
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="flex-1 rounded-full bg-[#DA2C43] text-white hover:bg-[#c9273c]"
+                          onClick={() => handleJoin(pool.id)}
+                        >
+                          I'm down
+                        </Button>
+                      )}
+
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-1 rounded-full text-muted-foreground hover:bg-primary-soft/70 hover:text-primary"
+                        onClick={() => navigate(`/pools/${pool.id}`)}
+                      >
+                        Details <ChevronRight className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+
+                    {ready && (
+                      <p className="text-center text-xs font-semibold text-[#DA2C43]">
+                        🎉 Enough people — open chat to decide what to do!
+                      </p>
+                    )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
-      )}
 
-      <Card
-        className="cursor-pointer rounded-3xl border-border bg-card shadow-sm transition-colors hover:bg-primary-soft/70"
-        onClick={() => navigate(`/groups/${groupId}/chat`)}
-      >
-        <CardHeader className="px-4 pb-1 pt-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm">Chat</CardTitle>
+        {suggestions.length > 0 && (
+          <div>
+            <p className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              ✨ Suggestions
+            </p>
 
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              View all <ChevronRight className="h-3 w-3" />
-            </span>
+            <div className="space-y-2">
+              {suggestions.map((s) => {
+                const ups = Object.values(s.votes ?? {}).filter(
+                  (v) => v === "up",
+                ).length;
+                const downs = Object.values(s.votes ?? {}).filter(
+                  (v) => v === "down",
+                ).length;
+                const myVote = s.votes?.[me?.id ?? ""];
+                const isOwn = s.fromUserId === me?.id;
+
+                return (
+                  <div
+                    key={s.id}
+                    className="rounded-2xl border border-border bg-card p-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold leading-snug">
+                          {s.cardTitle}
+                        </p>
+
+                        <p className="text-xs text-muted-foreground">
+                          {s.cardArea} · {s.cardType}
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <button
+                          onClick={async () => {
+                            await voteOnSuggestion(s.id, "up");
+                            refresh();
+                          }}
+                          className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                            myVote === "up"
+                              ? "border-green-500 bg-green-500 text-white"
+                              : "border-border text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          ✓{ups > 0 && <span>{ups}</span>}
+                        </button>
+
+                        <button
+                          onClick={async () => {
+                            await voteOnSuggestion(s.id, "down");
+                            refresh();
+                          }}
+                          className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                            myVote === "down"
+                              ? "border-red-500 bg-red-500 text-white"
+                              : "border-border text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          ✕{downs > 0 && <span>{downs}</span>}
+                        </button>
+
+                        {isOwn && (
+                          <button
+                            onClick={async () => {
+                              await deleteSuggestion(s.id);
+                              refresh();
+                            }}
+                            className="text-muted-foreground transition-colors hover:text-destructive"
+                            title="Remove suggestion"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </CardHeader>
+        )}
 
-        <CardContent className="px-4 pb-3">
-          {recentMessages.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No messages yet. Start the chat.
+        <Card
+          className="cursor-pointer rounded-3xl border-border bg-card shadow-sm transition-colors hover:bg-primary-soft/70"
+          onClick={() => navigate(`/groups/${groupId}/chat`)}
+        >
+          <CardHeader className="px-4 pb-1 pt-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm">Chat</CardTitle>
+
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                View all <ChevronRight className="h-3 w-3" />
+              </span>
+            </div>
+          </CardHeader>
+
+          <CardContent className="px-4 pb-3">
+            {recentMessages.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No messages yet. Start the chat.
+              </p>
+            ) : (
+              <div className="space-y-1">
+                {recentMessages.map((msg) => (
+                  <p key={msg.id} className="truncate text-sm">
+                    <span className="font-medium">
+                      {messageAuthors[msg.authorId] ?? "?"}:{" "}
+                    </span>
+                    {msg.body}
+                  </p>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Recent Activity
+          </p>
+
+          {posts.length === 0 ? (
+            <p className="rounded-3xl border border-dashed border-border bg-card p-4 text-sm text-muted-foreground shadow-sm">
+              No posts in this group yet.
             </p>
           ) : (
-            <div className="space-y-1">
-              {recentMessages.map((msg) => (
-                <p key={msg.id} className="truncate text-sm">
-                  <span className="font-medium">
-                    {messageAuthors[msg.authorId] ?? "?"}:{" "}
-                  </span>
-                  {msg.body}
-                </p>
+            <div className="space-y-2">
+              {posts.map((p) => (
+                <PostCard key={p.id} post={p} onDeleted={refresh} />
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Recent Activity
-        </p>
-
-        {posts.length === 0 ? (
-          <p className="rounded-3xl border border-dashed border-border bg-card p-4 text-sm text-muted-foreground shadow-sm">
-            No posts in this group yet.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {posts.map((p) => (
-              <PostCard key={p.id} post={p} onDeleted={refresh} />
-            ))}
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

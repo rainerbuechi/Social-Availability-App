@@ -21,8 +21,13 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import DiscoverMap, { PLACE_CATEGORY_CONFIG } from "@/components/DiscoverMap";
 import {
-  loadRegion, invalidateRegionCache, placeToMapPin,
-  getFavorites, getAllCustomPlaces, getReviews, getComments,
+  loadRegion,
+  invalidateRegionCache,
+  placeToMapPin,
+  getFavorites,
+  getAllCustomPlaces,
+  getReviews,
+  getComments,
 } from "@/lib/places";
 
 type TimeSlot = "morning" | "afternoon" | "evening";
@@ -299,11 +304,10 @@ function scorePlaceFor(
 
   score += Math.random() * 0.8;
 
-  // Star rating boost (synchronous localStorage read)
   const reviews = getReviews(place.id);
   if (reviews.length > 0) {
     const avg = reviews.reduce((s, r) => s + r.rating, 0) / reviews.length;
-    score += avg * 1.5; // up to +7.5 for a 5-star place
+    score += avg * 1.5;
   }
 
   return score;
@@ -597,8 +601,8 @@ export default function Discover() {
   ];
 
   return (
-    <div className="min-h-full overflow-x-hidden bg-muted/20">
-      <header className="safe-top sticky top-0 z-30 border-b border-border/70 bg-background/95 px-4 py-4 shadow-sm backdrop-blur">
+    <div className="flex h-full flex-col overflow-hidden bg-muted/20">
+      <header className="safe-top shrink-0 border-b border-border/70 bg-background/95 px-4 py-4 shadow-sm backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <h1 className="shrink-0 text-2xl font-extrabold tracking-tight">
             Discover<span className="text-[#DA2C43]">.</span>
@@ -645,266 +649,287 @@ export default function Discover() {
         </div>
       </header>
 
-      {editingLoc && (
-        <div className="m-4 space-y-3 rounded-3xl border border-border bg-card p-4 shadow-sm">
-          <p className="text-sm font-semibold">Where are you based?</p>
+      <div className="no-scrollbar flex-1 overflow-y-auto overflow-x-hidden pb-28">
+        {editingLoc && (
+          <div className="m-4 space-y-3 rounded-3xl border border-border bg-card p-4 shadow-sm">
+            <p className="text-sm font-semibold">Where are you based?</p>
 
-          <div className="relative">
-            <label className="mb-1 block text-xs text-muted-foreground">
-              City *
-            </label>
+            <div className="relative">
+              <label className="mb-1 block text-xs text-muted-foreground">
+                City *
+              </label>
 
-            <Input
-              placeholder="e.g. Zürich, Rapperswil, Wetzikon"
-              value={draftCity}
-              onChange={(e) => handleCityInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setCitySuggestions([]);
-                if (e.key === "Enter") {
-                  setCitySuggestions([]);
-                  saveLocation();
-                }
-              }}
-              autoComplete="off"
-              className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
-            />
-
-            {citySuggestions.length > 0 && (
-              <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
-                {citySuggestions.map((s) => (
-                  <button
-                    key={s}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-primary-soft/70 hover:text-primary"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      selectCitySuggestion(s);
-                    }}
-                  >
-                    <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs text-muted-foreground">
-              Area / Neighbourhood{" "}
-              <span className="text-muted-foreground/60">(optional)</span>
-            </label>
-
-            <Input
-              placeholder="e.g. Langstrasse, Oerlikon, Seefeld"
-              value={draftArea}
-              onChange={(e) => setDraftArea(e.target.value)}
-              className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
-            />
-
-            <p className="mt-1 text-xs text-muted-foreground">
-              If set, the map and suggestions will centre here
-            </p>
-          </div>
-
-          <div className="flex gap-2">
-            <Button
-              className="flex-1 rounded-full bg-[#DA2C43] text-white hover:bg-[#c9273c]"
-              onClick={saveLocation}
-            >
-              Save
-            </Button>
-
-            {location && (
-              <Button
-                variant="outline"
-                className="flex-1 rounded-full border-border bg-card hover:bg-primary-soft/70 hover:text-primary"
-                onClick={() => {
-                  setEditingLoc(false);
-                  setCitySuggestions([]);
+              <Input
+                placeholder="e.g. Zürich, Rapperswil, Wetzikon"
+                value={draftCity}
+                onChange={(e) => handleCityInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setCitySuggestions([]);
+                  if (e.key === "Enter") {
+                    setCitySuggestions([]);
+                    saveLocation();
+                  }
                 }}
-              >
-                Cancel
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
+                autoComplete="off"
+                className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
+              />
 
-      <div style={{ display: view === "map" ? "block" : "none" }}>
-        {mapMounted && (
-          <div className="px-4 pb-4 pt-3">
-            <DiscoverMap
-              pins={mapPins}
-              centerLat={mapCenter.lat}
-              centerLng={mapCenter.lng}
-              loading={mapLoading}
-              favoriteIds={favoriteIds}
-              groups={groups}
-              currentUserId={meId}
-              onSuggest={handleSuggest}
-              onPinAdded={(pin) => {
-                setMapPins((prev) => [...prev, pin]);
-                invalidateRegionCache();
-              }}
-              onViewDetails={(pin) =>
-                navigate(`/places/${pin.placeId ?? pin.id}`)
-              }
-              onRefresh={() =>
-                loadData(
-                  true,
-                  currentMapBounds ??
-                    (location?.lat && location?.lng
-                      ? bboxAround(location.lat, location.lng)
-                      : undefined),
-                )
-              }
-              onBoundsChange={handleMapBoundsChange}
-            />
+              {citySuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
+                  {citySuggestions.map((s) => (
+                    <button
+                      key={s}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-primary-soft/70 hover:text-primary"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectCitySuggestion(s);
+                      }}
+                    >
+                      <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                Area / Neighbourhood{" "}
+                <span className="text-muted-foreground/60">(optional)</span>
+              </label>
+
+              <Input
+                placeholder="e.g. Langstrasse, Oerlikon, Seefeld"
+                value={draftArea}
+                onChange={(e) => setDraftArea(e.target.value)}
+                className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
+              />
+
+              <p className="mt-1 text-xs text-muted-foreground">
+                If set, the map and suggestions will centre here
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                className="flex-1 rounded-full bg-[#DA2C43] text-white hover:bg-[#c9273c]"
+                onClick={saveLocation}
+              >
+                Save
+              </Button>
+
+              {location && (
+                <Button
+                  variant="outline"
+                  className="flex-1 rounded-full border-border bg-card hover:bg-primary-soft/70 hover:text-primary"
+                  onClick={() => {
+                    setEditingLoc(false);
+                    setCitySuggestions([]);
+                  }}
+                >
+                  Cancel
+                </Button>
+              )}
+            </div>
           </div>
         )}
-      </div>
 
-      {view === "list" && (
-        <>
-          <div className="flex gap-2 px-4 pt-3">
-            {(["morning", "afternoon", "evening"] as TimeSlot[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => {
-                  setTimeSlot(t);
-                  sessionStorage.setItem("discover_timeslot", t);
+        <div style={{ display: view === "map" ? "block" : "none" }}>
+          {mapMounted && (
+            <div className="px-4 pb-4 pt-3">
+              <DiscoverMap
+                pins={mapPins}
+                centerLat={mapCenter.lat}
+                centerLng={mapCenter.lng}
+                loading={mapLoading}
+                favoriteIds={favoriteIds}
+                groups={groups}
+                currentUserId={meId}
+                onSuggest={handleSuggest}
+                onPinAdded={(pin) => {
+                  setMapPins((prev) => [...prev, pin]);
+                  invalidateRegionCache();
                 }}
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
-                  timeSlot === t
-                    ? "border-[#DA2C43] bg-[#DA2C43] text-white"
-                    : "border-border bg-card text-muted-foreground hover:bg-primary-soft/70 hover:text-primary"
-                }`}
-              >
-                {TIME_LABELS[t]}
-              </button>
-            ))}
-          </div>
+                onViewDetails={(pin) =>
+                  navigate(`/places/${pin.placeId ?? pin.id}`)
+                }
+                onRefresh={() =>
+                  loadData(
+                    true,
+                    currentMapBounds ??
+                      (location?.lat && location?.lng
+                        ? bboxAround(location.lat, location.lng)
+                        : undefined),
+                  )
+                }
+                onBoundsChange={handleMapBoundsChange}
+              />
+            </div>
+          )}
+        </div>
 
-          <div className="scrollbar-none flex gap-1.5 overflow-x-auto px-4 pb-1 pt-2">
-            {listCategories.map((c) => (
-              <button
-                key={c.value}
-                onClick={() => {
-                  setCategoryFilter(c.value);
-                  sessionStorage.setItem("discover_category", c.value);
-                }}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
-                  categoryFilter === c.value
-                    ? "border-[#DA2C43] bg-[#DA2C43] text-white"
-                    : "border-border bg-card text-muted-foreground hover:bg-primary-soft/70 hover:text-primary"
-                }`}
-              >
-                {c.emoji} {c.label}
-              </button>
-            ))}
-          </div>
+        {view === "list" && (
+          <>
+            <div className="flex gap-2 px-4 pt-3">
+              {(["morning", "afternoon", "evening"] as TimeSlot[]).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => {
+                    setTimeSlot(t);
+                    sessionStorage.setItem("discover_timeslot", t);
+                  }}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
+                    timeSlot === t
+                      ? "border-[#DA2C43] bg-[#DA2C43] text-white"
+                      : "border-border bg-card text-muted-foreground hover:bg-primary-soft/70 hover:text-primary"
+                  }`}
+                >
+                  {TIME_LABELS[t]}
+                </button>
+              ))}
+            </div>
 
-          <div className="space-y-3 px-4 pb-24 pt-3">
-            {mapLoading ? (
-              <p className="py-12 text-center text-sm text-muted-foreground">
-                Loading places…
-              </p>
-            ) : filteredPlaces.length === 0 ? (
-              <p className="py-12 text-center text-sm text-muted-foreground">
-                No places for this filter.
-              </p>
-            ) : (
-              filteredPlaces.map((place) => {
-                const cfg = PLACE_CATEGORY_CONFIG[place.category];
-                const isFav = favoriteIds.includes(place.id);
-                const isUserPublic =
-                  place.source === "manual" && place.isPublic === true;
-                const isUserPrivate =
-                  place.source === "manual" && !place.isPublic;
+            <div className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 pb-1 pt-2">
+              {listCategories.map((c) => (
+                <button
+                  key={c.value}
+                  onClick={() => {
+                    setCategoryFilter(c.value);
+                    sessionStorage.setItem("discover_category", c.value);
+                  }}
+                  className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
+                    categoryFilter === c.value
+                      ? "border-[#DA2C43] bg-[#DA2C43] text-white"
+                      : "border-border bg-card text-muted-foreground hover:bg-primary-soft/70 hover:text-primary"
+                  }`}
+                >
+                  {c.emoji} {c.label}
+                </button>
+              ))}
+            </div>
 
-                return (
-                  <div
-                    key={place.id}
-                    className="cursor-pointer space-y-2 rounded-3xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-primary-soft/70"
-                    onClick={() => navigate(`/places/${place.id}`)}
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 flex flex-wrap items-center gap-2">
-                          <span
-                            className="rounded-full px-2 py-0.5 text-xs font-semibold"
-                            style={{
-                              background: cfg.color + "22",
-                              color: cfg.color,
-                            }}
-                          >
-                            {cfg.emoji} {cfg.label}
-                          </span>
+            <div className="space-y-3 px-4 pb-4 pt-3">
+              {mapLoading ? (
+                <p className="py-12 text-center text-sm text-muted-foreground">
+                  Loading places…
+                </p>
+              ) : filteredPlaces.length === 0 ? (
+                <p className="py-12 text-center text-sm text-muted-foreground">
+                  No places for this filter.
+                </p>
+              ) : (
+                filteredPlaces.map((place) => {
+                  const cfg = PLACE_CATEGORY_CONFIG[place.category];
+                  const isFav = favoriteIds.includes(place.id);
+                  const isUserPublic =
+                    place.source === "manual" && place.isPublic === true;
+                  const isUserPrivate =
+                    place.source === "manual" && !place.isPublic;
 
-                          {place.area && (
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <MapPin className="h-3 w-3" />
-                              {place.area}
+                  return (
+                    <div
+                      key={place.id}
+                      className="cursor-pointer space-y-2 rounded-3xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-primary-soft/70"
+                      onClick={() => navigate(`/places/${place.id}`)}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-1 flex flex-wrap items-center gap-2">
+                            <span
+                              className="rounded-full px-2 py-0.5 text-xs font-semibold"
+                              style={{
+                                background: cfg.color + "22",
+                                color: cfg.color,
+                              }}
+                            >
+                              {cfg.emoji} {cfg.label}
                             </span>
-                          )}
 
-                          {isFav && (
-                            <span className="text-xs font-semibold text-[#DA2C43]">
-                              ❤️ Saved
-                            </span>
-                          )}
+                            {place.area && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <MapPin className="h-3 w-3" />
+                                {place.area}
+                              </span>
+                            )}
 
-                          {isUserPublic && (
-                            <span className="text-xs font-semibold text-[#DA2C43]">
-                              👥 Community
-                            </span>
-                          )}
+                            {isFav && (
+                              <span className="text-xs font-semibold text-[#DA2C43]">
+                                ❤️ Saved
+                              </span>
+                            )}
 
-                          {isUserPrivate && (
-                            <span className="text-xs text-muted-foreground">
-                              🔒 Private
-                            </span>
-                          )}
+                            {isUserPublic && (
+                              <span className="text-xs font-semibold text-[#DA2C43]">
+                                👥 Community
+                              </span>
+                            )}
+
+                            {isUserPrivate && (
+                              <span className="text-xs text-muted-foreground">
+                                🔒 Private
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="font-semibold text-foreground">
+                            {place.name}
+                          </p>
+
+                          {(() => {
+                            const reviews = getReviews(place.id);
+                            const comments = getComments(place.id);
+                            const avgRating = reviews.length
+                              ? reviews.reduce((s, r) => s + r.rating, 0) /
+                                reviews.length
+                              : null;
+                            const snippet =
+                              place.description ||
+                              reviews.find((r) => r.body)?.body ||
+                              comments[0]?.body;
+
+                            return (
+                              <>
+                                {avgRating !== null && (
+                                  <div className="mt-0.5 flex items-center gap-1">
+                                    {"★★★★★".split("").map((_, i) => (
+                                      <span
+                                        key={i}
+                                        className="text-xs"
+                                        style={{
+                                          color:
+                                            i < Math.round(avgRating)
+                                              ? "#f59e0b"
+                                              : "#d1d5db",
+                                        }}
+                                      >
+                                        ★
+                                      </span>
+                                    ))}
+                                    <span className="ml-0.5 text-xs text-muted-foreground">
+                                      {avgRating.toFixed(1)} ({reviews.length})
+                                    </span>
+                                  </div>
+                                )}
+
+                                {snippet && (
+                                  <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                                    {snippet}
+                                  </p>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
-
-                        <p className="font-semibold text-foreground">
-                          {place.name}
-                        </p>
-
-                        {(() => {
-                          const reviews = getReviews(place.id);
-                          const comments = getComments(place.id);
-                          const avgRating = reviews.length
-                            ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
-                            : null;
-                          const snippet = place.description
-                            || reviews.find((r) => r.body)?.body
-                            || comments[0]?.body;
-                          return (
-                            <>
-                              {avgRating !== null && (
-                                <div className="flex items-center gap-1 mt-0.5">
-                                  {"★★★★★".split("").map((_, i) => (
-                                    <span key={i} className="text-xs" style={{ color: i < Math.round(avgRating!) ? "#f59e0b" : "#d1d5db" }}>★</span>
-                                  ))}
-                                  <span className="text-xs text-muted-foreground ml-0.5">{avgRating.toFixed(1)} ({reviews.length})</span>
-                                </div>
-                              )}
-                              {snippet && (
-                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{snippet}</p>
-                              )}
-                            </>
-                          );
-                        })()}
                       </div>
                     </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </>
-      )}
+                  );
+                })
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
