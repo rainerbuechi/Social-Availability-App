@@ -12,13 +12,13 @@ const tabs = [
 
 export default function AppLayout() {
   return (
-    <div className="mx-auto flex h-screen max-w-md flex-col overflow-hidden bg-background">
-      <main className="flex-1 overflow-hidden">
-        <Outlet />
-      </main>
+    <div className="min-h-screen bg-slate-200">
+      <div className="mx-auto flex h-screen w-full max-w-md flex-col overflow-hidden bg-background shadow-xl">
+        <main className="min-h-0 flex-1 overflow-hidden">
+          <Outlet />
+        </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 safe-bottom">
-        <div className="mx-auto max-w-md border-t border-border bg-card/95 backdrop-blur">
+        <nav className="safe-bottom shrink-0 border-t border-border bg-card/95 backdrop-blur">
           <ul className="grid grid-cols-5">
             {tabs.map(({ to, label, icon: Icon }) => (
               <li key={to}>
@@ -39,8 +39,8 @@ export default function AppLayout() {
               </li>
             ))}
           </ul>
-        </div>
-      </nav>
+        </nav>
+      </div>
     </div>
   );
 }

@@ -182,10 +182,6 @@ export default function Groups() {
             <h1 className="truncate text-2xl font-extrabold tracking-tight">
               Groups<span className="text-[#DA2C43]">.</span>
             </h1>
-
-            <p className="mt-1 truncate text-xs text-muted-foreground">
-              Choose who sees what you're up to.
-            </p>
           </div>
 
           <button
