@@ -10,3 +10,4 @@
 -ui
 -notifications generell
 - feed dur täg trenne
+- Discory list view needs a way to recommend to groups
