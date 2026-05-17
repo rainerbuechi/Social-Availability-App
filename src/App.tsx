@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppLayout from "./components/AppLayout";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/Login";
 import Feed from "./pages/Feed";
 import CreateStatus from "./pages/CreateStatus";
@@ -28,19 +29,23 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Login />} />
-          <Route element={<AppLayout />}>
-            <Route path="/feed" element={<Feed />} />
-            <Route path="/create" element={<CreateStatus />} />
-            <Route path="/posts/:postId" element={<PostDetail />} />
-            <Route path="/friends" element={<Friends />} />
-            <Route path="/groups" element={<Groups />} />
-            <Route path="/groups/:groupId" element={<GroupDetail />} />
-            <Route path="/groups/:groupId/chat" element={<GroupChat />} />
-            <Route path="/pools/:poolId" element={<PoolDetail />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/discover" element={<Discover />} />
-            <Route path="/places/:placeId" element={<PlaceDetail />} />
+
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AppLayout />}>
+              <Route path="/feed" element={<Feed />} />
+              <Route path="/create" element={<CreateStatus />} />
+              <Route path="/posts/:postId" element={<PostDetail />} />
+              <Route path="/friends" element={<Friends />} />
+              <Route path="/groups" element={<Groups />} />
+              <Route path="/groups/:groupId" element={<GroupDetail />} />
+              <Route path="/groups/:groupId/chat" element={<GroupChat />} />
+              <Route path="/pools/:poolId" element={<PoolDetail />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/discover" element={<Discover />} />
+              <Route path="/places/:placeId" element={<PlaceDetail />} />
+            </Route>
           </Route>
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
