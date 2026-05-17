@@ -4,40 +4,105 @@ import { LogOut, Pencil, Check, UserPlus, ChevronRight } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import {
-  getCurrentUser,
-  getPrivacy,
-  listGroups,
-  updatePrivacy,
-  updateCurrentUser,
-  logoutLocal,
-} from "@/lib/api";
-import { FriendGroup, PrivacySettings, User } from "@/lib/types";
+import { getPrivacy, listGroups, updatePrivacy } from "@/lib/api";
+import { FriendGroup, PrivacySettings } from "@/lib/types";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabaseClient";
+
+type ProfileUser = {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+};
 
 export default function Profile() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
+
+  const [user, setUser] = useState<ProfileUser | null>(null);
   const [groups, setGroups] = useState<FriendGroup[]>([]);
   const [privacy, setPrivacy] = useState<PrivacySettings | null>(null);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editUsername, setEditUsername] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    getCurrentUser().then((u) => {
-      if (!u) {
-        navigate("/");
-        return;
+    let isMounted = true;
+
+    async function loadProfile() {
+      setIsLoading(true);
+
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const authUser = session?.user;
+
+        if (!authUser) {
+          navigate("/", { replace: true });
+          return;
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, username, display_name")
+          .eq("id", authUser.id)
+          .maybeSingle();
+
+        if (profileError) {
+          toast.error(profileError.message);
+        }
+
+        const fallbackName =
+          authUser.user_metadata?.display_name ||
+          authUser.user_metadata?.name ||
+          authUser.email?.split("@")[0] ||
+          "User";
+
+        const fallbackUsername =
+          authUser.user_metadata?.username ||
+          authUser.email?.split("@")[0] ||
+          "user";
+
+        const loadedUser: ProfileUser = {
+          id: authUser.id,
+          email: authUser.email ?? "",
+          name: profile?.display_name ?? fallbackName,
+          username: profile?.username ?? fallbackUsername,
+        };
+
+        if (!isMounted) return;
+
+        setUser(loadedUser);
+        setEditName(loadedUser.name);
+        setEditUsername(loadedUser.username);
+
+        const [loadedGroups, loadedPrivacy] = await Promise.all([
+          listGroups(),
+          getPrivacy(),
+        ]);
+
+        if (!isMounted) return;
+
+        setGroups(loadedGroups);
+        setPrivacy(loadedPrivacy);
+      } catch (error) {
+        console.error(error);
+        toast.error("Could not load profile");
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
+    }
 
-      setUser(u);
-      setEditName(u.name);
-      setEditUsername(u.username);
-    });
+    loadProfile();
 
-    listGroups().then(setGroups);
-    getPrivacy().then(setPrivacy);
+    return () => {
+      isMounted = false;
+    };
   }, [navigate]);
 
   const update = async (patch: Partial<PrivacySettings>) => {
@@ -46,25 +111,79 @@ export default function Profile() {
   };
 
   const saveProfile = async () => {
-    const updated = await updateCurrentUser({
-      name: editName.trim(),
-      username: editUsername.trim().toLowerCase(),
-    });
+    if (!user) return;
 
-    if (updated) {
-      setUser(updated);
-      toast.success("Profile updated");
+    const cleanName = editName.trim();
+    const cleanUsername = editUsername.trim().toLowerCase();
+
+    if (!cleanName || !cleanUsername) {
+      toast.error("Display name and username are required");
+      return;
     }
 
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        display_name: cleanName,
+        username: cleanUsername,
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    const updatedUser = {
+      ...user,
+      name: cleanName,
+      username: cleanUsername,
+    };
+
+    setUser(updatedUser);
     setEditing(false);
+    toast.success("Profile updated");
   };
 
   const handleLogout = async () => {
-    await logoutLocal();
-    navigate("/");
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    localStorage.clear();
+    sessionStorage.clear();
+
+    toast.success("Signed out");
+    navigate("/", { replace: true });
   };
 
-  if (!user || !privacy) return null;
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        Loading profile...
+      </div>
+    );
+  }
+
+  if (!user || !privacy) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center">
+        <p className="text-sm text-muted-foreground">
+          Could not load your profile.
+        </p>
+
+        <button
+          onClick={() => navigate("/feed")}
+          className="rounded-full bg-[#DA2C43] px-4 py-2 text-sm font-semibold text-white"
+        >
+          Back to Feed
+        </button>
+      </div>
+    );
+  }
 
   const initials = user.name
     .split(" ")
