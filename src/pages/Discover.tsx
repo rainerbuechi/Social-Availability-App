@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, List, Map } from "lucide-react";
+import { MapPin, List, Map, CalendarDays } from "lucide-react";
+import { useEvents } from "@/hooks/useEvents";
+import EventsTab from "@/components/EventsTab";
 import {
   getUserLocation,
   saveUserLocation,
@@ -355,8 +357,8 @@ export default function Discover() {
   const [draftArea, setDraftArea] = useState("");
   const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
 
-  const [view, setView] = useState<"list" | "map">(
-    () => (sessionStorage.getItem("discover_view") as "list" | "map") ?? "list",
+  const [view, setView] = useState<"list" | "map" | "events">(() =>
+    (sessionStorage.getItem("discover_view") as "list" | "map" | "events") ?? "list"
   );
 
   const [mapMounted, setMapMounted] = useState(
@@ -397,6 +399,7 @@ export default function Discover() {
   const [groups, setGroups] = useState<FriendGroup[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [meId, setMeId] = useState("");
+  const { events, loading: eventsLoading, refresh: refreshEvents } = useEvents(location);
 
   const loadData = async (
     force = false,
@@ -478,7 +481,7 @@ export default function Discover() {
     };
   }, [view]);
 
-  const changeView = (v: "list" | "map") => {
+  const changeView = (v: "list" | "map" | "events") => {
     setView(v);
     sessionStorage.setItem("discover_view", v);
     if (v === "map") setMapMounted(true);
@@ -644,6 +647,18 @@ export default function Discover() {
             >
               <Map className="h-4 w-4" />
               Map
+            </button>
+
+            <button
+              onClick={() => changeView("events")}
+              className={`flex items-center gap-1.5 rounded-full px-7 py-2.5 text-sm font-semibold transition-all ${
+                view === "events"
+                  ? "bg-[#DA2C43] text-white shadow-sm"
+                  : "text-muted-foreground hover:bg-primary-soft hover:text-primary"
+              }`}
+            >
+              <CalendarDays className="h-4 w-4" />
+              Events
             </button>
           </div>
         </div>
@@ -928,6 +943,16 @@ export default function Discover() {
               )}
             </div>
           </>
+        )}
+
+        {view === "events" && (
+          <EventsTab
+            events={events}
+            loading={eventsLoading}
+            location={location}
+            meId={meId}
+            onRefresh={refreshEvents}
+          />
         )}
       </div>
     </div>

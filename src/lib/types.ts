@@ -240,3 +240,32 @@ export interface PlaceReview {
   body?: string;
   createdAt: string;
 }
+
+
+// ── Events ────────────────────────────────────────────────────────────────
+
+export type EventSource = "ticketmaster" | "eventfrog" | "community";
+
+export type EventCategory = "music" | "arts" | "sport" | "party" | "community" | "other";
+
+export interface AppEvent {
+  id: string;
+  source: EventSource;
+  title: string;
+  category: EventCategory;
+  venueName: string;
+  city: string;
+  area?: string;
+  lat?: number;
+  lng?: number;
+  distanceKm?: number;
+  startDate: string;      // ISO string
+  price?: string;         // "CHF 25" | "Free"
+  imageUrl?: string;
+  ticketUrl?: string;
+  description?: string;
+  attractionId?: string;   // used to group duplicate TM dates
+  endDate?: string;        // for multi-day events
+  authorId?: string;      // community events only
+  createdAt?: string;
+}
