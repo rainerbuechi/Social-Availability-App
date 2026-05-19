@@ -17,6 +17,7 @@ import {
   User,
   UserLocation,
   WaitingPool,
+  FriendNickname,
 } from "./types";
 import {
   defaultPrivacy,
@@ -39,6 +40,8 @@ const POOLS_KEY = "waiting_pools";
 const POOL_MEMBERS_KEY = "pool_memberships";
 const LOCATION_KEY = "user_location";
 const SUGGESTIONS_KEY = "group_suggestions";
+const NICKNAMES_KEY = "app_nicknames";
+let _nicknames: FriendNickname[] = loadJson<FriendNickname[]>(NICKNAMES_KEY, []);
 
 function loadJson<T>(key: string, fallback: T): T {
   try {
@@ -391,6 +394,23 @@ export async function removeFriend(userId: string): Promise<boolean> {
   await removeUserFromAllGroups(userId);
 
   return true;
+}
+
+export async function setFriendNickname(friendId: string, nickname: string): Promise<void> {
+  const idx = _nicknames.findIndex((n) => n.friendId === friendId);
+  if (nickname.trim() === "") {
+    // Empty nickname = remove it
+    if (idx !== -1) _nicknames.splice(idx, 1);
+  } else if (idx !== -1) {
+    _nicknames[idx].nickname = nickname.trim();
+  } else {
+    _nicknames.push({ friendId, nickname: nickname.trim() });
+  }
+  saveJson(NICKNAMES_KEY, _nicknames);
+}
+
+export async function getFriendNicknames(): Promise<FriendNickname[]> {
+  return [..._nicknames];
 }
 
 export async function searchUsers(query: string): Promise<User[]> {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { UserPlus, UserMinus, Clock, Check, Search } from "lucide-react";
+import { UserPlus, UserMinus, Clock, Check, Search, Pencil, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
@@ -13,6 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
 
 type Profile = {
   id: string;
@@ -45,6 +46,9 @@ export default function Friends() {
   const [removeTarget, setRemoveTarget] = useState<FriendListItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
+  const [nicknames, setNicknames] = useState<Record<string, string>>({});
+  const [editingNicknameFor, setEditingNicknameFor] = useState<string | null>(null);
+  const [nicknameInput, setNicknameInput] = useState("");
 
   const refresh = async () => {
     setIsLoading(true);
@@ -64,6 +68,9 @@ export default function Friends() {
     }
 
     setMeId(authUser.id);
+
+    const stored = localStorage.getItem(`nicknames_${authUser.id}`);
+    setNicknames(stored ? JSON.parse(stored) : {});
 
     const { data: friendshipRows, error: friendshipsError } = await supabase
       .from("friendships")
@@ -256,6 +263,23 @@ export default function Friends() {
       .slice(0, 2)
       .join("")
       .toUpperCase();
+      
+  const nicknameFor = (profileId: string) => nicknames[profileId] ?? null;
+
+  const displayName = (profile: Profile) =>
+    nicknameFor(profile.id) ?? profile.display_name;
+
+  const saveNickname = (profileId: string) => {
+    const next = { ...nicknames };
+    if (nicknameInput.trim() === "") {
+      delete next[profileId];
+    } else {
+      next[profileId] = nicknameInput.trim();
+    }
+    setNicknames(next);
+    localStorage.setItem(`nicknames_${meId}`, JSON.stringify(next));
+    setEditingNicknameFor(null);
+  };
 
   const renderFriendItem = (item: FriendListItem) => {
     const { profile, friendship, direction } = item;
@@ -272,23 +296,66 @@ export default function Friends() {
 
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">
-              {profile.display_name}
+              {displayName(profile)}
             </p>
-            <p className="truncate text-xs text-muted-foreground">
-              @{profile.username}
-            </p>
+            {nicknameFor(profile.id) ? (
+              <p className="truncate text-xs text-muted-foreground">
+                {profile.display_name} · @{profile.username}
+              </p>
+            ) : (
+              <p className="truncate text-xs text-muted-foreground">
+                @{profile.username}
+              </p>
+            )}
           </div>
         </div>
 
         <div className="shrink-0">
           {friendship.status === "accepted" && (
-            <button
-              onClick={() => setRemoveTarget(item)}
-              className="inline-flex h-8 items-center gap-1 rounded-full border border-border px-3 text-xs font-medium text-muted-foreground hover:bg-muted"
-            >
-              <UserMinus className="h-3.5 w-3.5" />
-              Remove
-            </button>
+            <div className="flex items-center gap-2">
+              {editingNicknameFor === profile.id ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    value={nicknameInput}
+                    onChange={(e) => setNicknameInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && saveNickname(profile.id)}
+                    placeholder="Nickname…"
+                    className="h-7 w-24 rounded-lg border border-border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => saveNickname(profile.id)}
+                    className="text-primary hover:opacity-70"
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setEditingNicknameFor(null)}
+                    className="text-muted-foreground hover:opacity-70"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setEditingNicknameFor(profile.id);
+                    setNicknameInput(nicknameFor(profile.id) ?? "");
+                  }}
+                  className="inline-flex h-8 items-center gap-1 rounded-full border border-border px-3 text-xs font-medium text-muted-foreground hover:bg-muted"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  {nicknameFor(profile.id) ? "Edit" : "Nickname"}
+                </button>
+              )}
+              <button
+                onClick={() => setRemoveTarget(item)}
+                className="inline-flex h-8 items-center gap-1 rounded-full border border-border px-3 text-xs font-medium text-muted-foreground hover:bg-muted"
+              >
+                <UserMinus className="h-3.5 w-3.5" />
+                Remove
+              </button>
+            </div>
           )}
 
           {friendship.status === "pending" && direction === "incoming" && (

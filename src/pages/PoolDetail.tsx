@@ -22,6 +22,7 @@ import { WaitingPool, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { useNicknames } from "@/hooks/useNicknames";
 
 function formatPoolDate(dateStr: string) {
   const d = new Date(dateStr + "T00:00:00");
@@ -44,6 +45,7 @@ export default function PoolDetail() {
   const [me, setMe] = useState<User | null>(null);
   const [inPool, setInPool] = useState(false);
   const [editing, setEditing] = useState(false);
+  const { displayName } = useNicknames();
 
   const [editTitle, setEditTitle] = useState("");
   const [editDesc, setEditDesc] = useState("");
@@ -358,7 +360,7 @@ export default function PoolDetail() {
 
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">
-                        {member.name}
+                        {displayName(member.id, member.name)}
                       </p>
 
                       <p className="truncate text-xs text-muted-foreground">

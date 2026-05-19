@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { useNicknames } from "@/hooks/useNicknames";
 
 function formatPoolDate(dateStr: string) {
   const d = new Date(dateStr + "T00:00:00");
@@ -68,6 +69,7 @@ export default function GroupDetail() {
   const [poolJoined, setPoolJoined] = useState<Record<string, boolean>>({});
   const [me, setMe] = useState<User | null>(null);
   const [suggestions, setSuggestions] = useState<GroupSuggestion[]>([]);
+  const { displayName } = useNicknames();
 
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState("");
@@ -229,7 +231,7 @@ export default function GroupDetail() {
                   <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-soft text-[10px] font-semibold text-primary">
                     {initials}
                   </div>
-                  {m.name}
+                  {displayName(m.id, m.name)}
                 </div>
               );
             })}
@@ -564,7 +566,7 @@ export default function GroupDetail() {
                 {recentMessages.map((msg) => (
                   <p key={msg.id} className="truncate text-sm">
                     <span className="font-medium">
-                      {messageAuthors[msg.authorId] ?? "?"}:{" "}
+                      {displayName(msg.authorId, messageAuthors[msg.authorId] ?? "?")}{" "}
                     </span>
                     {msg.body}
                   </p>
