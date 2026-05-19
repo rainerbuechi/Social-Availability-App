@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { STATUS_META } from "@/lib/status";
+import { getActivityMeta } from "@/lib/status";
 import { StatusType } from "@/lib/types";
 
 interface Props {
@@ -9,7 +9,8 @@ interface Props {
 }
 
 export default function StatusBadge({ status, className, size = "md" }: Props) {
-  const meta = STATUS_META[status];
+  const meta = getActivityMeta(status);
+
   return (
     <span
       className={cn(

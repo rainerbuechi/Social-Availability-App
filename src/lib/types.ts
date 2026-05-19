@@ -1,13 +1,18 @@
 /* ── Status / Post types ─────────────────────────── */
 
-export type StatusType =
+/* ── Activity / Post types ───────────────────────── */
+
+export type StandardActivityType =
   | "free"
   | "studying"
   | "lunch"
   | "coffee"
   | "party"
-  | "gym"
-  | "busy";
+  | "gym";
+
+export type CustomActivityType = `custom:${string}:${string}`;
+
+export type StatusType = StandardActivityType | CustomActivityType;
 
 export type LocationPrecision = "hidden" | "approximate" | "exact";
 

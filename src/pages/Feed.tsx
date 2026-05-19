@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
 
 import PostCard from "@/components/PostCard";
 import { Calendar } from "@/components/ui/calendar";
 
 import { listFeed } from "@/lib/api";
 import { AvailabilityPost } from "@/lib/types";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 
 type FeedView = "activity" | "calendar";
 
@@ -87,9 +88,15 @@ export default function Feed() {
 
   const today = useMemo(() => startOfToday(), []);
 
-  const refresh = useCallback(() => {
-    listFeed().then(setPosts);
+  const refresh = useCallback(async () => {
+    const nextPosts = await listFeed();
+    setPosts(nextPosts);
   }, []);
+
+  const { pullDistance, isRefreshing, isReady, pullHandlers } =
+    usePullToRefresh({
+      onRefresh: refresh,
+    });
 
   useEffect(() => {
     refresh();
@@ -158,6 +165,47 @@ export default function Feed() {
     ? `/create?date=${toDateParam(selectedDate)}`
     : "/create";
 
+  const showPullLoader = pullDistance > 0 || isRefreshing;
+
+  const PullLoader = (
+    <div
+      className="pointer-events-none absolute left-0 right-0 top-3 z-20 flex justify-center transition-opacity duration-150"
+      style={{
+        opacity: showPullLoader ? 1 : 0,
+      }}
+    >
+      <div className="flex h-10 items-center gap-2 rounded-full bg-card px-3 text-xs font-semibold text-muted-foreground shadow-md">
+        <Loader2
+          className={`h-4 w-4 ${
+            isRefreshing
+              ? "animate-spin text-[#DA2C43]"
+              : isReady
+                ? "text-[#DA2C43]"
+                : "text-muted-foreground"
+          }`}
+          style={{
+            transform: isRefreshing
+              ? undefined
+              : `rotate(${Math.min(pullDistance * 5, 320)}deg)`,
+          }}
+        />
+
+        <span>
+          {isRefreshing
+            ? "Refreshing..."
+            : isReady
+              ? "Release to refresh"
+              : "Pull to refresh"}
+        </span>
+      </div>
+    </div>
+  );
+
+  const contentTransform = {
+    transform: `translateY(${pullDistance}px)`,
+    transition: isRefreshing ? "transform 180ms ease" : undefined,
+  };
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-muted/20">
       <header className="safe-top shrink-0 border-b border-border/70 bg-background/95 px-4 py-4 shadow-sm backdrop-blur">
@@ -205,143 +253,168 @@ export default function Feed() {
       </header>
 
       {view === "activity" && (
-        <div className="no-scrollbar flex-1 space-y-7 overflow-y-auto p-4 pb-28">
-          {futurePosts.length === 0 ? (
-            <div className="py-20 text-center text-muted-foreground">
-              No one's down yet. Be the first 👀
-            </div>
-          ) : (
-            groupedFuturePosts.map((group) => (
-              <section key={toDateKey(group.date)} className="space-y-3">
-                <div className="flex items-center gap-3 px-1">
-                  <div className="h-px flex-1 bg-[#DA2C43]/25" />
-                  <div className="whitespace-nowrap rounded-full bg-[#DA2C43]/10 px-3 py-1 text-sm font-bold text-[#DA2C43]">
-                    {formatDayLabel(group.date)}
-                  </div>
-                  <div className="h-px flex-1 bg-[#DA2C43]/25" />
-                </div>
+        <div
+          {...pullHandlers}
+          className="no-scrollbar relative flex-1 overflow-y-auto overflow-x-hidden p-4 pb-28"
+          style={{
+            overscrollBehaviorY: "contain",
+            touchAction: "pan-y",
+          }}
+        >
+          {PullLoader}
 
-                <div className="space-y-3">
-                  {group.posts.map((post) => (
-                    <PostCard key={post.id} post={post} onDeleted={refresh} />
-                  ))}
-                </div>
-              </section>
-            ))
-          )}
+          <div className="space-y-7" style={contentTransform}>
+            {futurePosts.length === 0 ? (
+              <div className="py-20 text-center text-muted-foreground">
+                No one's down yet. Be the first 👀
+              </div>
+            ) : (
+              groupedFuturePosts.map((group) => (
+                <section key={toDateKey(group.date)} className="space-y-3">
+                  <div className="flex items-center gap-3 px-1">
+                    <div className="h-px flex-1 bg-[#DA2C43]/25" />
+
+                    <div className="whitespace-nowrap rounded-full bg-[#DA2C43]/10 px-3 py-1 text-sm font-bold text-[#DA2C43]">
+                      {formatDayLabel(group.date)}
+                    </div>
+
+                    <div className="h-px flex-1 bg-[#DA2C43]/25" />
+                  </div>
+
+                  <div className="space-y-3">
+                    {group.posts.map((post) => (
+                      <PostCard key={post.id} post={post} onDeleted={refresh} />
+                    ))}
+                  </div>
+                </section>
+              ))
+            )}
+          </div>
         </div>
       )}
 
       {view === "calendar" && (
-        <div className="no-scrollbar flex-1 overflow-y-auto overflow-x-hidden p-4 pb-28">
-          <div className="mx-auto w-full max-w-sm rounded-3xl border border-border bg-card p-3 shadow-sm">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={(date) => {
-                if (!date) {
-                  setSelectedDate(undefined);
-                  return;
-                }
+        <div
+          {...pullHandlers}
+          className="no-scrollbar relative flex-1 overflow-y-auto overflow-x-hidden p-4 pb-28"
+          style={{
+            overscrollBehaviorY: "contain",
+            touchAction: "pan-y",
+          }}
+        >
+          {PullLoader}
 
-                const picked = new Date(date);
-                picked.setHours(0, 0, 0, 0);
+          <div style={contentTransform}>
+            <div className="mx-auto w-full max-w-sm rounded-3xl border border-border bg-card p-3 shadow-sm">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => {
+                  if (!date) {
+                    setSelectedDate(undefined);
+                    return;
+                  }
 
-                if (picked >= today) {
-                  setSelectedDate(date);
-                }
-              }}
-              disabled={{ before: today }}
-              showOutsideDays={false}
-              className="mx-auto w-full p-0"
-              classNames={{
-                months: "flex w-full justify-center",
-                month: "w-full space-y-4",
-                caption: "relative flex justify-center pt-1 pb-2 items-center",
-                caption_label: "text-sm font-semibold",
-                nav: "flex items-center gap-1",
-                nav_button:
-                  "inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background p-0 leading-none opacity-80 hover:opacity-100 [&_svg]:block [&_svg]:h-5 [&_svg]:w-5 [&_svg]:shrink-0",
-                nav_button_previous: "absolute left-1",
-                nav_button_next: "absolute right-1",
-                table: "w-full border-collapse space-y-1",
-                head_row: "grid grid-cols-7",
-                head_cell:
-                  "flex h-8 items-center justify-center text-[0.7rem] font-medium text-muted-foreground",
-                row: "grid grid-cols-7",
-                cell: "relative flex h-11 items-center justify-center text-center text-sm",
-                day: "relative flex h-10 w-10 items-center justify-center rounded-2xl text-sm transition-colors hover:bg-primary-soft hover:text-primary",
-                day_selected:
-                  "bg-[#DA2C43] text-white hover:bg-[#DA2C43] hover:text-white focus:bg-[#DA2C43] focus:text-white",
-                day_today:
-                  "border border-[#DA2C43]/50 font-semibold text-[#DA2C43]",
-                day_disabled: "text-muted-foreground/30 opacity-40",
-                day_outside: "text-muted-foreground/30 opacity-40",
-              }}
-              components={{
-                IconLeft: () => (
-                  <span className="flex h-full w-full items-center justify-center">
-                    <ChevronLeft className="block h-5 w-5" />
-                  </span>
-                ),
-                IconRight: () => (
-                  <span className="flex h-full w-full items-center justify-center">
-                    <ChevronRight className="block h-5 w-5" />
-                  </span>
-                ),
-                DayContent: ({ date }) => {
-                  const postsOnDay =
-                    postsByDateKey.get(date.toDateString()) ?? [];
-                  const dotColors = Array.from(
-                    new Set(
-                      postsOnDay.map((post) => colorForAuthor(post.authorId)),
-                    ),
-                  ).slice(0, 4);
+                  const picked = new Date(date);
+                  picked.setHours(0, 0, 0, 0);
 
-                  return (
-                    <div className="flex h-10 w-10 flex-col items-center justify-center">
-                      <span className="leading-none">{date.getDate()}</span>
+                  if (picked >= today) {
+                    setSelectedDate(date);
+                  }
+                }}
+                disabled={{ before: today }}
+                showOutsideDays={false}
+                className="mx-auto w-full p-0"
+                classNames={{
+                  months: "flex w-full justify-center",
+                  month: "w-full space-y-4",
+                  caption: "relative flex justify-center pt-1 pb-2 items-center",
+                  caption_label: "text-sm font-semibold",
+                  nav: "flex items-center gap-1",
+                  nav_button:
+                    "inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background p-0 leading-none opacity-80 hover:opacity-100 [&_svg]:block [&_svg]:h-5 [&_svg]:w-5 [&_svg]:shrink-0",
+                  nav_button_previous: "absolute left-1",
+                  nav_button_next: "absolute right-1",
+                  table: "w-full border-collapse space-y-1",
+                  head_row: "grid grid-cols-7",
+                  head_cell:
+                    "flex h-8 items-center justify-center text-[0.7rem] font-medium text-muted-foreground",
+                  row: "grid grid-cols-7",
+                  cell: "relative flex h-11 items-center justify-center text-center text-sm",
+                  day: "relative flex h-10 w-10 items-center justify-center rounded-2xl text-sm transition-colors hover:bg-primary-soft hover:text-primary",
+                  day_selected:
+                    "bg-[#DA2C43] text-white hover:bg-[#DA2C43] hover:text-white focus:bg-[#DA2C43] focus:text-white",
+                  day_today:
+                    "border border-[#DA2C43]/50 font-semibold text-[#DA2C43]",
+                  day_disabled: "text-muted-foreground/30 opacity-40",
+                  day_outside: "text-muted-foreground/30 opacity-40",
+                }}
+                components={{
+                  IconLeft: () => (
+                    <span className="flex h-full w-full items-center justify-center">
+                      <ChevronLeft className="block h-5 w-5" />
+                    </span>
+                  ),
+                  IconRight: () => (
+                    <span className="flex h-full w-full items-center justify-center">
+                      <ChevronRight className="block h-5 w-5" />
+                    </span>
+                  ),
+                  DayContent: ({ date }) => {
+                    const postsOnDay =
+                      postsByDateKey.get(date.toDateString()) ?? [];
 
-                      {dotColors.length > 0 && (
-                        <div className="mt-1 flex max-w-8 items-center justify-center gap-0.5">
-                          {dotColors.map((color) => (
-                            <span
-                              key={color}
-                              className="h-1.5 w-1.5 rounded-full"
-                              style={{ backgroundColor: color }}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                },
-              }}
-            />
-          </div>
+                    const dotColors = Array.from(
+                      new Set(
+                        postsOnDay.map((post) => colorForAuthor(post.authorId)),
+                      ),
+                    ).slice(0, 4);
 
-          <div className="mt-4 space-y-3">
-            {!selectedDate ? (
-              <p className="py-10 text-center text-muted-foreground">
-                Pick a date to see posts
-              </p>
-            ) : postsForDate.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-[#DA2C43]/30 bg-card p-6 text-center text-muted-foreground">
-                <p>No posts on this day.</p>
+                    return (
+                      <div className="flex h-10 w-10 flex-col items-center justify-center">
+                        <span className="leading-none">{date.getDate()}</span>
 
-                <Link
-                  to={createUrl}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#DA2C43] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#c9273c]"
-                >
-                  <Plus className="h-4 w-4" />
-                  Create one
-                </Link>
-              </div>
-            ) : (
-              postsForDate.map((post) => (
-                <PostCard key={post.id} post={post} onDeleted={refresh} />
-              ))
-            )}
+                        {dotColors.length > 0 && (
+                          <div className="mt-1 flex max-w-8 items-center justify-center gap-0.5">
+                            {dotColors.map((color) => (
+                              <span
+                                key={color}
+                                className="h-1.5 w-1.5 rounded-full"
+                                style={{ backgroundColor: color }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  },
+                }}
+              />
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {!selectedDate ? (
+                <p className="py-10 text-center text-muted-foreground">
+                  Pick a date to see posts
+                </p>
+              ) : postsForDate.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-[#DA2C43]/30 bg-card p-6 text-center text-muted-foreground">
+                  <p>No posts on this day.</p>
+
+                  <Link
+                    to={createUrl}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#DA2C43] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#c9273c]"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create one
+                  </Link>
+                </div>
+              ) : (
+                postsForDate.map((post) => (
+                  <PostCard key={post.id} post={post} onDeleted={refresh} />
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}

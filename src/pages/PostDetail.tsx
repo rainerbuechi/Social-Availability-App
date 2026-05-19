@@ -129,7 +129,7 @@ export default function PostDetail() {
   const locationLabel = (() => {
     if (!post) return "";
     if (post.locationPrecision === "hidden" || !post.locationName) {
-      return "Location hidden";
+      return "Unknown location";
     }
     if (post.locationPrecision === "approximate") {
       return `Near ${post.locationName}`;

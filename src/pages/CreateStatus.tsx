@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,13 @@ import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import { STATUS_META, STATUS_ORDER } from "@/lib/status";
+import {
+  ACTIVITY_META,
+  ACTIVITY_ORDER,
+  createCustomActivityStatus,
+  getActivityMeta,
+  isCustomActivity,
+} from "@/lib/status";
 import { FriendGroup, LocationPrecision, StatusType } from "@/lib/types";
 import { createPost, getPost, listGroups, updatePost } from "@/lib/api";
 
@@ -100,6 +106,9 @@ export default function CreateStatus() {
   const [loaded, setLoaded] = useState(!editId);
   const [isSaving, setIsSaving] = useState(false);
 
+  const [customEmoji, setCustomEmoji] = useState("✨");
+  const [customLabel, setCustomLabel] = useState("");
+
   useEffect(() => {
     listGroups().then((gs) => {
       const realGroups = gs.filter(
@@ -126,6 +135,13 @@ export default function CreateStatus() {
       postStartDate.setHours(0, 0, 0, 0);
 
       setStatus(post.status);
+
+      if (isCustomActivity(post.status)) {
+        const meta = getActivityMeta(post.status);
+        setCustomEmoji(meta.emoji);
+        setCustomLabel(meta.label);
+      }
+
       setMessage(post.message ?? "");
       setSelectedDate(postStartDate);
       setStart(toLocalTime(new Date(post.startTime)));
@@ -151,6 +167,19 @@ export default function CreateStatus() {
     }
 
     return nextDate;
+  };
+
+  const useCustomActivity = () => {
+    const cleanLabel = customLabel.trim();
+    const cleanEmoji = customEmoji.trim();
+
+    if (!cleanLabel) {
+      toast.error("Please enter an activity name.");
+      return;
+    }
+
+    const nextStatus = createCustomActivityStatus(cleanLabel, cleanEmoji);
+    setStatus(nextStatus);
   };
 
   const onSubmit = async (e: FormEvent) => {
@@ -208,6 +237,9 @@ export default function CreateStatus() {
 
   if (!loaded) return null;
 
+  const selectedActivityMeta = getActivityMeta(status);
+  const customIsSelected = isCustomActivity(status);
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-muted/20">
       <header className="safe-top shrink-0 border-b border-border/70 bg-background/95 px-4 py-4 shadow-sm backdrop-blur">
@@ -238,18 +270,18 @@ export default function CreateStatus() {
         className="no-scrollbar flex-1 space-y-6 overflow-y-auto p-4 pb-28"
       >
         <section>
-          <Label className="mb-2 block">Status</Label>
+          <Label className="mb-2 block">Activity</Label>
 
           <div className="grid grid-cols-3 gap-2">
-            {STATUS_ORDER.map((s) => {
-              const meta = STATUS_META[s];
-              const active = s === status;
+            {ACTIVITY_ORDER.map((activity) => {
+              const meta = ACTIVITY_META[activity];
+              const active = activity === status;
 
               return (
                 <button
-                  key={s}
+                  key={activity}
                   type="button"
-                  onClick={() => setStatus(s)}
+                  onClick={() => setStatus(activity)}
                   className={cn(
                     "flex flex-col items-center gap-1 rounded-2xl border-2 p-3 text-sm shadow-sm transition-colors",
                     active
@@ -262,6 +294,63 @@ export default function CreateStatus() {
                 </button>
               );
             })}
+          </div>
+
+          <div
+            className={cn(
+              "mt-3 rounded-3xl border-2 bg-card p-3 shadow-sm transition-colors",
+              customIsSelected
+                ? "border-[#DA2C43] bg-[#DA2C43]/10"
+                : "border-border",
+            )}
+          >
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">Custom activity</p>
+                <p className="text-xs text-muted-foreground">
+                  Add your own emoji and activity name.
+                </p>
+              </div>
+
+              {customIsSelected && (
+                <span className="rounded-full bg-[#DA2C43] px-2 py-0.5 text-xs font-semibold text-white">
+                  Selected
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-[72px_1fr] gap-2">
+              <Input
+                value={customEmoji}
+                onChange={(e) => setCustomEmoji(e.target.value)}
+                placeholder="✨"
+                maxLength={4}
+                className="h-11 rounded-2xl bg-background text-center text-lg focus-visible:ring-[#DA2C43]"
+              />
+
+              <Input
+                value={customLabel}
+                onChange={(e) => setCustomLabel(e.target.value)}
+                placeholder="e.g. Cinema, Walk, Gaming"
+                maxLength={24}
+                className="h-11 rounded-2xl bg-background focus-visible:ring-[#DA2C43]"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={useCustomActivity}
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary-soft px-4 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary-soft/80"
+            >
+              <Plus className="h-4 w-4" />
+              Use custom activity
+            </button>
+
+            {customIsSelected && (
+              <p className="mt-2 text-center text-xs text-muted-foreground">
+                Selected: {selectedActivityMeta.emoji} {selectedActivityMeta.label}
+              </p>
+            )}
           </div>
         </section>
 
