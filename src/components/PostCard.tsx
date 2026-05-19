@@ -9,8 +9,7 @@ import {
 } from "lucide-react";
 
 import { AvailabilityPost, FriendGroup, User } from "@/lib/types";
-import { formatTimeRange } from "@/lib/status";
-import StatusBadge from "./StatusBadge";
+import { formatTimeRange, getActivityMeta } from "@/lib/status";
 import {
   deletePost,
   getCurrentUser,
@@ -59,12 +58,7 @@ export default function PostCard({ post, onDeleted }: Props) {
     isCurrentUserParticipating(post.id).then(setImDown);
   }, [post]);
 
-  const initials = author?.name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const activity = getActivityMeta(post.status);
 
   const locationLabel = (() => {
     if (!post.locationName || post.locationPrecision === "hidden") {
@@ -101,42 +95,48 @@ export default function PostCard({ post, onDeleted }: Props) {
 
   return (
     <article
-      className="relative cursor-pointer rounded-3xl border border-border bg-card p-5 shadow-sm transition-colors hover:bg-primary-soft/70"
+      className="cursor-pointer rounded-[1.65rem] border border-border/70 bg-card/95 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-border hover:bg-card hover:shadow-md"
       onClick={() => navigate(`/posts/${post.id}`)}
     >
-      <div className="absolute left-1/2 top-5 -translate-x-1/2 text-base font-semibold text-foreground">
-        {formatTimeRange(post.startTime, post.endTime)}
-      </div>
+      <header className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2.5">
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-lg"
+              style={{
+                backgroundColor: `hsl(var(--${activity.colorVar}) / 0.10)`,
+              }}
+            >
+              {activity.emoji}
+            </span>
 
-      <header className="flex items-start gap-3 pt-8">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-soft text-base font-medium text-primary">
-          {initials || "?"}
+            <div className="min-w-0">
+              <p className="truncate text-[15px] font-bold leading-tight text-foreground">
+                {activity.label}
+              </p>
+
+              <p className="truncate text-xs text-muted-foreground">
+                {author?.name ?? "…"}
+                {author?.username ? ` · @${author.username}` : ""}
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="min-w-0 flex-1 pt-1.5">
-          <p className="truncate text-base font-semibold text-foreground">
-            {author?.name ?? "…"}
-          </p>
-
-          <p className="truncate text-sm text-muted-foreground">
-            @{author?.username ?? "user"}
-          </p>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2 pt-1">
-          <div className="origin-right scale-125">
-            <StatusBadge status={post.status} size="sm" />
+        <div className="flex shrink-0 items-start gap-1">
+          <div className="rounded-full bg-muted/70 px-2.5 py-1 text-xs font-bold text-foreground/80">
+            {formatTimeRange(post.startTime, post.endTime)}
           </div>
 
           {isOwn && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-primary-soft"
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   aria-label="Post actions"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <MoreHorizontal className="h-5 w-5 text-muted-foreground" />
+                  <MoreHorizontal className="h-4.5 w-4.5" />
                 </button>
               </DropdownMenuTrigger>
 
@@ -159,37 +159,37 @@ export default function PostCard({ post, onDeleted }: Props) {
         </div>
       </header>
 
-      {post.message && (
-        <p className="mt-4 text-[17px] leading-snug text-foreground">
+      {post.message ? (
+        <p className="mt-4 text-[16px] leading-snug text-foreground">
           {post.message}
         </p>
+      ) : (
+        <div className="mt-3" />
       )}
 
-      <div className="mt-2 flex items-center justify-between gap-4 text-sm text-muted-foreground">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <MapPin className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{locationLabel}</span>
+      <footer className="mt-4 space-y-3">
+        <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+          <div className="flex min-w-0 items-center gap-1.5 rounded-2xl bg-muted/50 px-3 py-2">
+            <MapPin className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{locationLabel}</span>
+          </div>
+
+          <div className="flex min-w-0 items-center gap-1.5 rounded-2xl bg-muted/50 px-3 py-2">
+            <Users className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{audienceLabel}</span>
+          </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5 text-right">
-          <Users className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{audienceLabel}</span>
-        </div>
-      </div>
+        {(participantCount > 0 || imDown) && (
+          <div className="flex items-center justify-between rounded-2xl bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            <span className="font-semibold">{participantCount} down</span>
 
-      {(participantCount > 0 || imDown) && (
-        <div className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground">
-          <Users className="h-3.5 w-3.5 shrink-0" />
-          <span>
-            {participantCount} down
             {imDown && (
-              <span className="ml-1 font-medium text-primary">
-                · You're down
-              </span>
+              <span className="font-bold text-[#DA2C43]">You're down</span>
             )}
-          </span>
-        </div>
-      )}
+          </div>
+        )}
+      </footer>
     </article>
   );
 }
