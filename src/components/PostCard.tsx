@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { toast } from "sonner";
+import { useNicknames } from "@/hooks/useNicknames";
 
 interface Props {
   post: AvailabilityPost;
@@ -41,6 +42,7 @@ export default function PostCard({ post, onDeleted }: Props) {
   const [isOwn, setIsOwn] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
   const [imDown, setImDown] = useState(false);
+  const { displayName } = useNicknames();
 
   useEffect(() => {
     getUser(post.authorId).then(setAuthor);
@@ -116,7 +118,7 @@ export default function PostCard({ post, onDeleted }: Props) {
               </p>
 
               <p className="truncate text-xs text-muted-foreground">
-                {author?.name ?? "…"}
+                {author ? displayName(author.id, author.name) : "…"}
                 {author?.username ? ` · @${author.username}` : ""}
               </p>
             </div>

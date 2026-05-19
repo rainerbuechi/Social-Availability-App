@@ -11,6 +11,7 @@ import {
 import { ChatMessage, FriendGroup, User } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { useNicknames } from "@/hooks/useNicknames";
 
 export default function GroupChat() {
   const { groupId } = useParams<{ groupId: string }>();
@@ -23,6 +24,7 @@ export default function GroupChat() {
   const [users, setUsers] = useState<User[]>([]);
   const [body, setBody] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const { displayName } = useNicknames();
 
   const refresh = async () => {
     if (!groupId) return;
@@ -131,7 +133,7 @@ export default function GroupChat() {
             >
               {!isMe && (
                 <span className="mb-0.5 text-[11px] font-medium text-muted-foreground">
-                  {author?.name ?? "Unknown"}
+                  {author ? displayName(author.id, author.name) : "Unknown"}
                 </span>
               )}
 

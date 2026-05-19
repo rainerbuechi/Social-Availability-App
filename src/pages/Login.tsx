@@ -105,7 +105,7 @@ export default function Login() {
         <div className="no-scrollbar flex flex-1 flex-col justify-between overflow-y-auto p-6">
           <div className="pt-16">
             <h1 className="text-5xl font-bold tracking-tight">
-              Down<span className="text-primary">?</span>
+              Down<span className="text-red-500">?</span>
             </h1>
 
             <p className="mt-3 text-base text-muted-foreground">

@@ -274,3 +274,8 @@ export interface AppEvent {
   authorId?: string;      // community events only
   createdAt?: string;
 }
+
+export interface FriendNickname {
+  friendId: string;   // the friend's user ID
+  nickname: string;   // what you call them
+}

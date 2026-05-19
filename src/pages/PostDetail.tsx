@@ -22,6 +22,7 @@ import StatusBadge from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { useNicknames } from "@/hooks/useNicknames";
 import {
   getCurrentUser,
   getParticipantCount,
@@ -51,6 +52,7 @@ export default function PostDetail() {
   const [showInput, setShowInput] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isJoining, setIsJoining] = useState(false);
+  const { displayName } = useNicknames();
 
   const refresh = useCallback(async () => {
     if (!postId) return;
@@ -270,7 +272,7 @@ export default function PostDetail() {
 
             <div className="min-w-0 flex-1">
               <p className="truncate text-base font-semibold text-foreground">
-                {author?.name ?? "…"}
+                {author ? displayName(author.id, author.name) : "…"}
               </p>
 
               <p className="truncate text-sm text-muted-foreground">
@@ -322,7 +324,7 @@ export default function PostDetail() {
               </div>
 
               <span className="text-sm font-medium text-foreground">
-                {author?.name}
+                {author ? displayName(author.id, author.name) : "…"}
               </span>
             </div>
           </div>
@@ -353,7 +355,7 @@ export default function PostDetail() {
 
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-foreground">
-                        {pp.user?.name ?? "Unknown"}
+                        {pp.user ? displayName(pp.user.id, pp.user.name) : "Unknown"}
 
                         {pp.userId === currentUser?.id && (
                           <span className="ml-1 text-xs text-primary">
