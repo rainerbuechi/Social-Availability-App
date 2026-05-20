@@ -399,7 +399,14 @@ export default function Discover() {
   const [groups, setGroups] = useState<FriendGroup[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
   const [meId, setMeId] = useState("");
-  const { events, loading: eventsLoading, refresh: refreshEvents } = useEvents(location);
+  const {
+    events,
+    loading: eventsLoading,
+    loadingMore: eventsLoadingMore,
+    hasMore: eventsHasMore,
+    refresh: refreshEvents,
+    loadMore: loadMoreEvents,
+  } = useEvents(location);
 
   const loadData = async (
     force = false,
@@ -949,9 +956,12 @@ export default function Discover() {
           <EventsTab
             events={events}
             loading={eventsLoading}
+            loadingMore={eventsLoadingMore}
+            hasMore={eventsHasMore}
             location={location}
             meId={meId}
             onRefresh={refreshEvents}
+            onLoadMore={loadMoreEvents}
           />
         )}
       </div>

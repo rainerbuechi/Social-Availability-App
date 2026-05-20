@@ -251,7 +251,17 @@ export interface PlaceReview {
 
 export type EventSource = "ticketmaster" | "eventfrog" | "community";
 
-export type EventCategory = "music" | "arts" | "sport" | "party" | "community" | "other";
+export type EventCategory =
+  | "music"
+  | "arts"
+  | "sport"
+  | "party"
+  | "food"
+  | "wellness"
+  | "education"
+  | "outdoor"
+  | "community"
+  | "other";
 
 export interface AppEvent {
   id: string;
@@ -264,14 +274,14 @@ export interface AppEvent {
   lat?: number;
   lng?: number;
   distanceKm?: number;
-  startDate: string;      // ISO string
-  price?: string;         // "CHF 25" | "Free"
+  startDate: string;
+  price?: string;
   imageUrl?: string;
   ticketUrl?: string;
   description?: string;
-  attractionId?: string;   // used to group duplicate TM dates
-  endDate?: string;        // for multi-day events
-  authorId?: string;      // community events only
+  attractionId?: string;
+  endDate?: string;
+  authorId?: string;
   createdAt?: string;
 }
 

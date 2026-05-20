@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Megaphone } from "lucide-react";
 import { AppEvent, EventCategory, UserLocation } from "@/lib/types";
 import EventCard from "./EventCard";
@@ -9,44 +9,82 @@ import { groupEvents, deleteCommunityEvent } from "@/lib/events";
 type CategoryFilter = Exclude<EventCategory, "community"> | "all";
 
 const FILTERS: { value: CategoryFilter; label: string; emoji: string }[] = [
-  { value: "all",   label: "All",   emoji: "✦"  },
+  { value: "all", label: "All", emoji: "✦" },
   { value: "music", label: "Music", emoji: "🎵" },
-  { value: "arts",  label: "Arts",  emoji: "🎨" },
+  { value: "arts", label: "Arts", emoji: "🎨" },
   { value: "sport", label: "Sport", emoji: "⚽" },
   { value: "party", label: "Party", emoji: "🎉" },
+  { value: "food", label: "Food", emoji: "🍽️" },
+  { value: "wellness", label: "Wellness", emoji: "🧘" },
+  { value: "education", label: "Education", emoji: "🎓" },
+  { value: "outdoor", label: "Outdoor", emoji: "🌿" },
   { value: "other", label: "Other", emoji: "📅" },
 ];
 
 interface Props {
   events: AppEvent[];
   loading: boolean;
+  loadingMore?: boolean;
+  hasMore?: boolean;
   location: UserLocation | null;
   meId: string;
   onRefresh: () => void;
+  onLoadMore?: () => void;
 }
 
 export default function EventsTab({
-  events, loading, location, meId, onRefresh,
+  events,
+  loading,
+  loadingMore = false,
+  hasMore = true,
+  location,
+  meId,
+  onRefresh,
+  onLoadMore,
 }: Props) {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
-  const [showAdd, setShowAdd]               = useState(false);
-  const [selectedGroup, setSelectedGroup]   = useState<AppEvent[] | null>(null);
-  const [editingEvent, setEditingEvent]     = useState<AppEvent | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<AppEvent[] | null>(null);
+  const [editingEvent, setEditingEvent] = useState<AppEvent | null>(null);
 
-  // Split community from external
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
   const communityEvents = events.filter((e) => e.source === "community");
-  const externalEvents  = events.filter((e) => e.source !== "community");
+  const externalEvents = events.filter((e) => e.source !== "community");
 
-  // Filter + deduplicate external events
-  const filtered = categoryFilter === "all"
-    ? externalEvents
-    : externalEvents.filter((e) => e.category === categoryFilter);
+  const filtered =
+    categoryFilter === "all"
+      ? externalEvents
+      : externalEvents.filter((e) => e.category === categoryFilter);
 
   const grouped = groupEvents(filtered);
 
+  useEffect(() => {
+    if (!onLoadMore) return;
+    if (!loadMoreRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+
+        if (entry.isIntersecting && hasMore && !loading && !loadingMore) {
+          onLoadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "300px",
+        threshold: 0,
+      },
+    );
+
+    observer.observe(loadMoreRef.current);
+
+    return () => observer.disconnect();
+  }, [onLoadMore, hasMore, loading, loadingMore]);
+
   return (
     <>
-      {/* Category filters */}
       <div className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 pb-1 pt-3">
         {FILTERS.map((f) => (
           <button
@@ -63,7 +101,6 @@ export default function EventsTab({
         ))}
       </div>
 
-      {/* Community CTA */}
       <div className="mx-4 mt-3 flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2.5 dark:border-orange-900 dark:bg-orange-950/20">
         <Megaphone className="h-4 w-4 shrink-0 text-orange-500" />
         <div className="min-w-0 flex-1">
@@ -82,7 +119,6 @@ export default function EventsTab({
         </button>
       </div>
 
-      {/* Community events — pinned section */}
       {communityEvents.length > 0 && (
         <>
           <p className="px-4 pt-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -101,7 +137,6 @@ export default function EventsTab({
         </>
       )}
 
-      {/* External events */}
       <p className="px-4 pt-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         Upcoming ·{" "}
         {location
@@ -123,18 +158,35 @@ export default function EventsTab({
             No events found nearby
           </p>
         ) : (
-          grouped.map((group) => (
-            <EventCard
-              key={group[0].id}
-              event={group[0]}
-              datesCount={group.length}
-              onClick={() => setSelectedGroup(group)}
-            />
-          ))
+          <>
+            {grouped.map((group) => (
+              <EventCard
+                key={group[0].id}
+                event={group[0]}
+                datesCount={group.length}
+                onClick={() => setSelectedGroup(group)}
+              />
+            ))}
+
+            <div ref={loadMoreRef} className="py-6 text-center">
+              {loadingMore ? (
+                <p className="text-xs text-muted-foreground">
+                  Loading more events…
+                </p>
+              ) : hasMore ? (
+                <p className="text-xs text-muted-foreground">
+                  Scroll for more events
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No more events nearby
+                </p>
+              )}
+            </div>
+          </>
         )}
       </div>
 
-      {/* Detail sheet */}
       {selectedGroup && (
         <EventDetailSheet
           events={selectedGroup}
@@ -152,14 +204,19 @@ export default function EventsTab({
         />
       )}
 
-      {/* Add event sheet */}
       {(showAdd || editingEvent) && location && (
         <AddEventSheet
           city={location.city}
           authorId={meId}
           editEvent={editingEvent ?? undefined}
-          onClose={() => { setShowAdd(false); setEditingEvent(null); }}
-          onAdded={() => { onRefresh(); setEditingEvent(null); }}
+          onClose={() => {
+            setShowAdd(false);
+            setEditingEvent(null);
+          }}
+          onAdded={() => {
+            onRefresh();
+            setEditingEvent(null);
+          }}
         />
       )}
     </>
