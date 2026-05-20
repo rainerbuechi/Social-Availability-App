@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Megaphone } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Megaphone, X } from "lucide-react";
 import { AppEvent, EventCategory, UserLocation } from "@/lib/types";
 import EventCard from "./EventCard";
 import AddEventSheet from "./AddEventSheet";
@@ -32,6 +32,56 @@ interface Props {
   onLoadMore?: () => void;
 }
 
+function parseDateInput(value: string): Date | null {
+  if (!value) return null;
+
+  const date = new Date(`${value}T00:00:00`);
+  if (!Number.isFinite(date.getTime())) return null;
+
+  return date;
+}
+
+function endOfDateInput(value: string): Date | null {
+  if (!value) return null;
+
+  const date = new Date(`${value}T23:59:59.999`);
+  if (!Number.isFinite(date.getTime())) return null;
+
+  return date;
+}
+
+function formatDateLabel(value: string) {
+  if (!value) return "";
+
+  const date = parseDateInput(value);
+  if (!date) return "";
+
+  return date.toLocaleDateString("en-CH", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function eventMatchesDateRange(
+  event: AppEvent,
+  fromDate: string,
+  toDate: string,
+) {
+  if (!fromDate && !toDate) return true;
+
+  const eventDate = new Date(event.startDate);
+  if (!Number.isFinite(eventDate.getTime())) return false;
+
+  const from = parseDateInput(fromDate);
+  const to = endOfDateInput(toDate);
+
+  if (from && eventDate < from) return false;
+  if (to && eventDate > to) return false;
+
+  return true;
+}
+
 export default function EventsTab({
   events,
   loading,
@@ -43,21 +93,38 @@ export default function EventsTab({
   onLoadMore,
 }: Props) {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<AppEvent[] | null>(null);
   const [editingEvent, setEditingEvent] = useState<AppEvent | null>(null);
 
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
-  const communityEvents = events.filter((e) => e.source === "community");
-  const externalEvents = events.filter((e) => e.source !== "community");
+  const hasDateFilter = Boolean(fromDate || toDate);
 
-  const filtered =
-    categoryFilter === "all"
-      ? externalEvents
-      : externalEvents.filter((e) => e.category === categoryFilter);
+  const communityEvents = useMemo(
+    () => events.filter((e) => e.source === "community"),
+    [events],
+  );
 
-  const grouped = groupEvents(filtered);
+  const externalEvents = useMemo(
+    () => events.filter((e) => e.source !== "community"),
+    [events],
+  );
+
+  const filtered = useMemo(() => {
+    return externalEvents.filter((event) => {
+      const matchesCategory =
+        categoryFilter === "all" || event.category === categoryFilter;
+
+      const matchesDate = eventMatchesDateRange(event, fromDate, toDate);
+
+      return matchesCategory && matchesDate;
+    });
+  }, [externalEvents, categoryFilter, fromDate, toDate]);
+
+  const grouped = useMemo(() => groupEvents(filtered), [filtered]);
 
   useEffect(() => {
     if (!onLoadMore) return;
@@ -83,8 +150,14 @@ export default function EventsTab({
     return () => observer.disconnect();
   }, [onLoadMore, hasMore, loading, loadingMore]);
 
+  const clearDateFilter = () => {
+    setFromDate("");
+    setToDate("");
+  };
+
   return (
     <>
+      {/* Category filters */}
       <div className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 pb-1 pt-3">
         {FILTERS.map((f) => (
           <button
@@ -101,6 +174,71 @@ export default function EventsTab({
         ))}
       </div>
 
+      {/* Exact date filters */}
+      <div className="mx-4 mt-2 rounded-xl border border-border bg-card px-3 py-2 shadow-sm">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Date
+          </p>
+
+          {hasDateFilter && (
+            <button
+              onClick={clearDateFilter}
+              className="flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted"
+            >
+              <X className="h-3 w-3" />
+              Clear
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <label className="min-w-0">
+            <span className="mb-1 block text-[10px] font-medium text-muted-foreground">
+              From
+            </span>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="h-9 w-full rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-[#DA2C43]"
+            />
+          </label>
+
+          <label className="min-w-0">
+            <span className="mb-1 block text-[10px] font-medium text-muted-foreground">
+              To
+            </span>
+            <input
+              type="date"
+              value={toDate}
+              min={fromDate || undefined}
+              onChange={(e) => setToDate(e.target.value)}
+              className="h-9 w-full rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-[#DA2C43]"
+            />
+          </label>
+        </div>
+
+        {hasDateFilter && (
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Showing{" "}
+            {fromDate ? (
+              <span className="font-medium text-foreground">
+                from {formatDateLabel(fromDate)}
+              </span>
+            ) : (
+              "all dates"
+            )}{" "}
+            {toDate && (
+              <span className="font-medium text-foreground">
+                to {formatDateLabel(toDate)}
+              </span>
+            )}
+          </p>
+        )}
+      </div>
+
+      {/* Community CTA */}
       <div className="mx-4 mt-3 flex items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2.5 dark:border-orange-900 dark:bg-orange-950/20">
         <Megaphone className="h-4 w-4 shrink-0 text-orange-500" />
         <div className="min-w-0 flex-1">
@@ -119,6 +257,7 @@ export default function EventsTab({
         </button>
       </div>
 
+      {/* Community events */}
       {communityEvents.length > 0 && (
         <>
           <p className="px-4 pt-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -137,6 +276,7 @@ export default function EventsTab({
         </>
       )}
 
+      {/* External events */}
       <p className="px-4 pt-4 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         Upcoming ·{" "}
         {location
@@ -154,9 +294,21 @@ export default function EventsTab({
             Set your location above to see events nearby
           </p>
         ) : grouped.length === 0 ? (
-          <p className="py-12 text-center text-sm text-muted-foreground">
-            No events found nearby
-          </p>
+          <div className="py-12 text-center">
+            <p className="text-sm text-muted-foreground">
+              No events found for this filter
+            </p>
+
+            {hasMore && onLoadMore && (
+              <button
+                onClick={onLoadMore}
+                disabled={loadingMore}
+                className="mt-3 rounded-full border border-border px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted disabled:opacity-60"
+              >
+                {loadingMore ? "Loading more…" : "Load more events"}
+              </button>
+            )}
+          </div>
         ) : (
           <>
             {grouped.map((group) => (

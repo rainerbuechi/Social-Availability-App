@@ -37,9 +37,16 @@ type AppEvent = {
   endDate?: string;
 };
 
+const EVENT_RADIUS_KM = 30;
+const EVENTFROG_PAGE_SIZE = 30;
+const EVENTFROG_INITIAL_SCAN_PAGES = 15;
+const EVENTFROG_LOAD_MORE_SCAN_PAGES = 5;
+const EVENTFROG_INITIAL_TARGET_COUNT = 20;
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -93,6 +100,7 @@ function safeString(value: unknown, fallback: string): string {
 
 function safeNumber(value: unknown): number | undefined {
   const numberValue = Number(value);
+
   return Number.isFinite(numberValue) && numberValue !== 0
     ? numberValue
     : undefined;
@@ -121,6 +129,14 @@ function haversineKm(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function isFutureEvent(startDate: string): boolean {
+  const startMs = new Date(startDate).getTime();
+
+  if (!Number.isFinite(startMs)) return false;
+
+  return startMs >= Date.now();
+}
+
 async function fetchTicketmasterEvents(
   location: UserLocation,
   page: number,
@@ -138,7 +154,7 @@ async function fetchTicketmasterEvents(
 
     if (location.lat && location.lng) {
       p.set("latlong", `${location.lat},${location.lng}`);
-      p.set("radius", "30");
+      p.set("radius", String(EVENT_RADIUS_KM));
       p.set("unit", "km");
     } else if (location.city) {
       p.set("city", location.city);
@@ -210,39 +226,48 @@ async function fetchTicketmasterEvents(
         lng: vLng,
         distanceKm:
           location.lat && location.lng && vLat && vLng
-            ? Math.round(haversineKm(location.lat, location.lng, vLat, vLng) * 10) / 10
+            ? Math.round(haversineKm(location.lat, location.lng, vLat, vLng) * 10) /
+              10
             : undefined,
         startDate: safeString(
           e.dates?.start?.dateTime ?? e.dates?.start?.localDate,
           "",
         ),
         price: tmPrice(e),
-        imageUrl: e.images?.find((i: any) => i.ratio === "16_9" && i.width > 200)?.url,
+        imageUrl: e.images?.find((i: any) => i.ratio === "16_9" && i.width > 200)
+          ?.url,
         ticketUrl: e.url,
         description: e.info ?? e.pleaseNote,
         attractionId: e._embedded?.attractions?.[0]?.id,
       };
     })
-    .filter((event) => Boolean(event.startDate));
+    .filter((event) => Boolean(event.startDate))
+    .filter((event) => isFutureEvent(event.startDate));
 }
 
-async function fetchEventfrogEvents(
+async function fetchEventfrogRawPage(
+  key: string,
   location: UserLocation,
-  page: number,
-): Promise<AppEvent[]> {
-  const key = Deno.env.get("EVENTFROG_KEY");
-  if (!key) return [];
-
+  eventfrogPage: number,
+): Promise<any[]> {
   const params = new URLSearchParams({
-    perPage: "30",
-    page: String(page + 1),
+    perPage: String(EVENTFROG_PAGE_SIZE),
+    page: String(eventfrogPage),
   });
 
-  if (location.city) {
+  if (location.lat && location.lng) {
+    params.set("lat", String(location.lat));
+    params.set("lng", String(location.lng));
+
+    // Eventfrog uses "r" for radius in km.
+    params.set("r", String(EVENT_RADIUS_KM));
+  } else if (location.city) {
     params.set("city", location.city);
   }
 
   const url = `https://api.eventfrog.net/api/v1/events?${params}`;
+
+  console.log("Eventfrog request url:", url);
 
   try {
     const res = await fetch(url, {
@@ -268,162 +293,235 @@ async function fetchEventfrogEvents(
       data.result ??
       [];
 
-    const rawEvents = Array.isArray(rawEventsCandidate) ? rawEventsCandidate : [];
+    const rawEvents = Array.isArray(rawEventsCandidate)
+      ? rawEventsCandidate
+      : [];
 
-    console.log("Eventfrog rawEvents count:", rawEvents.length);
+    console.log(
+      `Eventfrog rawEvents count page ${eventfrogPage}:`,
+      rawEvents.length,
+    );
 
-    return rawEvents
-      .map((e: any): AppEvent => {
-        const venue =
-          e.location ??
-          e.venue ??
-          e.place ??
-          e.address ??
-          e.eventLocation ??
-          e.event_location ??
-          {};
-
-        const start =
-          e.begin ??
-          e.startDate ??
-          e.start_date ??
-          e.start ??
-          e.startsAt ??
-          e.starts_at ??
-          e.beginDate ??
-          e.date ??
-          e.openingDate ??
-          e.opening_date ??
-          "";
-
-        const title =
-          e.title ??
-          e.name ??
-          e.eventName ??
-          e.event_name ??
-          e.designation ??
-          e.summary ??
-          e.description;
-
-        const venueName =
-          venue.name ??
-          venue.title ??
-          venue.designation ??
-          e.locationName ??
-          e.location_name ??
-          e.venueName ??
-          e.venue_name ??
-          e.location?.name ??
-          e.location?.title;
-
-        const city =
-          venue.city ??
-          venue.town ??
-          venue.address?.city ??
-          e.city ??
-          e.town ??
-          e.locationCity ??
-          e.location_city ??
-          location.city;
-
-        const lat =
-          safeNumber(venue.latitude) ??
-          safeNumber(venue.lat) ??
-          safeNumber(venue.geo?.lat) ??
-          safeNumber(venue.coordinates?.lat) ??
-          safeNumber(e.latitude) ??
-          safeNumber(e.lat);
-
-        const lng =
-          safeNumber(venue.longitude) ??
-          safeNumber(venue.lng) ??
-          safeNumber(venue.lon) ??
-          safeNumber(venue.geo?.lng) ??
-          safeNumber(venue.geo?.lon) ??
-          safeNumber(venue.coordinates?.lng) ??
-          safeNumber(venue.coordinates?.lon) ??
-          safeNumber(e.longitude) ??
-          safeNumber(e.lng) ??
-          safeNumber(e.lon);
-
-        const groupId =
-          e.groupId ??
-          e.group_id ??
-          e.eventGroupId ??
-          e.event_group_id ??
-          e.group?.id;
-
-        const imageUrl = firstDefined(
-          e.emblemToShow?.url,
-          e.imageUrl,
-          e.image_url,
-          e.image?.url,
-          e.teaserImage?.url,
-          e.teaser_image?.url,
-          e.picture?.url,
-          e.pictures?.[0]?.url,
-          e.images?.[0]?.url,
-          e.media?.[0]?.url,
-        );
-
-        const ticketUrl = firstDefined(
-          e.url,
-          e.webUrl,
-          e.web_url,
-          e.ticketUrl,
-          e.ticket_url,
-          e.bookingUrl,
-          e.booking_url,
-          e.permalink,
-          e.links?.self,
-          e.links?.web,
-          e.presaleLink,
-        );
-
-        return {
-          id: `ef_${e.id ?? e.eventId ?? e.event_id ?? crypto.randomUUID()}`,
-          source: "eventfrog",
-          title: safeString(title, "Untitled event"),
-          category: mapEventfrogCategory(e),
-          venueName: safeString(
-            venueName ?? e.organizerName ?? e.locationAlias,
-            "Unknown venue",
-          ),
-          city: safeString(city, location.city),
-          area: safeString(city, location.area ?? location.city),
-          lat,
-          lng,
-          distanceKm:
-            location.lat && location.lng && lat && lng
-              ? Math.round(haversineKm(location.lat, location.lng, lat, lng) * 10) / 10
-              : undefined,
-          startDate: safeString(start, ""),
-          endDate: undefined,
-          price:
-            typeof e.priceText === "string"
-              ? e.priceText
-              : typeof e.price === "string"
-                ? e.price
-                : undefined,
-          imageUrl: typeof imageUrl === "string" ? imageUrl : undefined,
-          ticketUrl: typeof ticketUrl === "string" ? ticketUrl : undefined,
-          description: safeString(
-            e.shortDescription ??
-              e.short_description ??
-              e.description ??
-              e.descriptionAsHTML ??
-              e.summary ??
-              e.subtitle,
-            "",
-          ),
-          attractionId: groupId ? String(groupId) : undefined,
-        };
-      })
-      .filter((event) => Boolean(event.startDate));
+    return rawEvents;
   } catch (err) {
     console.error("Eventfrog fetch failed", err);
     return [];
   }
+}
+
+function mapEventfrogEvent(e: any, location: UserLocation): AppEvent | null {
+  const venue =
+    e.location ??
+    e.venue ??
+    e.place ??
+    e.address ??
+    e.eventLocation ??
+    e.event_location ??
+    {};
+
+  const start =
+    e.begin ??
+    e.startDate ??
+    e.start_date ??
+    e.start ??
+    e.startsAt ??
+    e.starts_at ??
+    e.beginDate ??
+    e.date ??
+    e.openingDate ??
+    e.opening_date ??
+    "";
+
+  const startDate = safeString(start, "");
+  if (!startDate) return null;
+
+  if (!isFutureEvent(startDate)) return null;
+
+  const title =
+    e.title ??
+    e.name ??
+    e.eventName ??
+    e.event_name ??
+    e.designation ??
+    e.summary ??
+    e.description;
+
+  const venueName =
+    venue.name ??
+    venue.title ??
+    venue.designation ??
+    e.locationName ??
+    e.location_name ??
+    e.venueName ??
+    e.venue_name ??
+    e.location?.name ??
+    e.location?.title;
+
+  const city =
+    venue.city ??
+    venue.town ??
+    venue.address?.city ??
+    e.city ??
+    e.town ??
+    e.locationCity ??
+    e.location_city ??
+    location.city;
+
+  const lat =
+    safeNumber(venue.latitude) ??
+    safeNumber(venue.lat) ??
+    safeNumber(venue.geo?.lat) ??
+    safeNumber(venue.coordinates?.lat) ??
+    safeNumber(e.latitude) ??
+    safeNumber(e.lat);
+
+  const lng =
+    safeNumber(venue.longitude) ??
+    safeNumber(venue.lng) ??
+    safeNumber(venue.lon) ??
+    safeNumber(venue.geo?.lng) ??
+    safeNumber(venue.geo?.lon) ??
+    safeNumber(venue.coordinates?.lng) ??
+    safeNumber(e.longitude) ??
+    safeNumber(e.lng) ??
+    safeNumber(e.lon);
+
+  let distanceKm: number | undefined;
+
+  if (location.lat && location.lng && lat && lng) {
+    distanceKm =
+      Math.round(haversineKm(location.lat, location.lng, lat, lng) * 10) / 10;
+
+    if (distanceKm > EVENT_RADIUS_KM) {
+      return null;
+    }
+  }
+
+  const groupId =
+    e.groupId ??
+    e.group_id ??
+    e.eventGroupId ??
+    e.event_group_id ??
+    e.group?.id;
+
+  const imageUrl = firstDefined(
+    e.emblemToShow?.url,
+    e.imageUrl,
+    e.image_url,
+    e.image?.url,
+    e.teaserImage?.url,
+    e.teaser_image?.url,
+    e.picture?.url,
+    e.pictures?.[0]?.url,
+    e.images?.[0]?.url,
+    e.media?.[0]?.url,
+  );
+
+  const ticketUrl = firstDefined(
+    e.url,
+    e.webUrl,
+    e.web_url,
+    e.ticketUrl,
+    e.ticket_url,
+    e.bookingUrl,
+    e.booking_url,
+    e.permalink,
+    e.links?.self,
+    e.links?.web,
+    e.presaleLink,
+  );
+
+  return {
+    id: `ef_${e.id ?? e.eventId ?? e.event_id ?? crypto.randomUUID()}`,
+    source: "eventfrog",
+    title: safeString(title, "Untitled event"),
+    category: mapEventfrogCategory(e),
+    venueName: safeString(
+      venueName ?? e.organizerName ?? e.locationAlias,
+      "Unknown venue",
+    ),
+    city: safeString(city, location.city),
+    area: safeString(city, location.area ?? location.city),
+    lat,
+    lng,
+    distanceKm,
+    startDate,
+    endDate: undefined,
+    price:
+      typeof e.priceText === "string"
+        ? e.priceText
+        : typeof e.price === "string"
+          ? e.price
+          : undefined,
+    imageUrl: typeof imageUrl === "string" ? imageUrl : undefined,
+    ticketUrl: typeof ticketUrl === "string" ? ticketUrl : undefined,
+    description: safeString(
+      e.shortDescription ??
+        e.short_description ??
+        e.description ??
+        e.descriptionAsHTML ??
+        e.summary ??
+        e.subtitle,
+      "",
+    ),
+    attractionId: groupId ? String(groupId) : undefined,
+  };
+}
+
+async function fetchEventfrogEvents(
+  location: UserLocation,
+  page: number,
+): Promise<AppEvent[]> {
+  const key = Deno.env.get("EVENTFROG_KEY");
+  if (!key) return [];
+
+  const pagesToScan =
+    page === 0 ? EVENTFROG_INITIAL_SCAN_PAGES : EVENTFROG_LOAD_MORE_SCAN_PAGES;
+
+  const startPage =
+    page === 0
+      ? 1
+      : EVENTFROG_INITIAL_SCAN_PAGES +
+        (page - 1) * EVENTFROG_LOAD_MORE_SCAN_PAGES +
+        1;
+
+  const pages = Array.from(
+    { length: pagesToScan },
+    (_, index) => startPage + index,
+  );
+
+  // Important: Eventfrog pages are fetched in parallel.
+  const rawPages = await Promise.all(
+    pages.map((eventfrogPage) =>
+      fetchEventfrogRawPage(key, location, eventfrogPage),
+    ),
+  );
+
+  const rawEvents = rawPages.flat();
+
+  const seen = new Set<string>();
+  const mapped: AppEvent[] = [];
+
+  for (const rawEvent of rawEvents) {
+    const id = String(rawEvent.id ?? rawEvent.eventId ?? rawEvent.event_id ?? "");
+
+    if (id && seen.has(id)) continue;
+    if (id) seen.add(id);
+
+    const event = mapEventfrogEvent(rawEvent, location);
+    if (event) mapped.push(event);
+  }
+
+  const sorted = mapped.sort(
+    (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
+  );
+
+  const result =
+    page === 0 ? sorted.slice(0, EVENTFROG_INITIAL_TARGET_COUNT) : sorted;
+
+  console.log("Eventfrog mapped count:", result.length);
+
+  return result;
 }
 
 function mapEventfrogCategory(e: any): EventCategory {
@@ -551,7 +649,6 @@ Deno.serve(async (req) => {
     ]);
 
     console.log("Ticketmaster mapped count:", ticketmaster.length);
-    console.log("Eventfrog mapped count:", eventfrog.length);
     console.log("External events page:", page);
 
     const events = [...ticketmaster, ...eventfrog].sort(
