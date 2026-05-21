@@ -1,7 +1,5 @@
 import { Place, PlaceCategory } from "./types";
 
-// overpass.kumi.systems is a public Overpass mirror that supports CORS,
-// so it works from both localhost and production without any proxy.
 const OVERPASS_ENDPOINT = "https://overpass.kumi.systems/api/interpreter";
 
 const CATEGORY_TO_OSM: Record<PlaceCategory, { key: string; value: string }[]> = {
@@ -70,7 +68,6 @@ function osmNodeToPlace(node: OverpassNode): Place {
   const street  = tags["addr:street"] ?? "";
   const number  = tags["addr:housenumber"] ?? "";
   const address = street ? `${street} ${number}`.trim() : undefined;
-
   return {
     id:           `osm_${node.id}`,
     source:       "osm",
@@ -88,23 +85,39 @@ function osmNodeToPlace(node: OverpassNode): Place {
   };
 }
 
+// FIX #2: retry up to 3 times with a short delay between attempts so a
+// single flaky response from kumi.systems doesn't leave the map empty.
 export async function fetchPlacesFromOverpass(
   bbox: [number, number, number, number],
   categories: PlaceCategory[],
 ): Promise<Place[]> {
   const query = buildOverpassQuery(bbox, categories);
+  const MAX_ATTEMPTS = 3;
 
-  const response = await fetch(OVERPASS_ENDPOINT, {
-    method: "POST",
-    body: `data=${encodeURIComponent(query)}`,
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-  });
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20_000); // 20 s hard limit
 
-  if (!response.ok) throw new Error(`Overpass ${response.status}`);
+      const response = await fetch(OVERPASS_ENDPOINT, {
+        method: "POST",
+        body: `data=${encodeURIComponent(query)}`,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        signal: controller.signal,
+      });
 
-  const data: OverpassResponse = await response.json();
+      clearTimeout(timeout);
 
-  return data.elements
-    .filter((el) => el.tags?.name?.trim())
-    .map(osmNodeToPlace);
+      if (!response.ok) throw new Error(`Overpass ${response.status}`);
+
+      const data: OverpassResponse = await response.json();
+      return data.elements.filter((el) => el.tags?.name?.trim()).map(osmNodeToPlace);
+    } catch (err) {
+      if (attempt === MAX_ATTEMPTS) throw err;
+      // Wait 1 s before retrying
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+
+  return []; // unreachable, but satisfies TS
 }

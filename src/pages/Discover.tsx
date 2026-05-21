@@ -30,6 +30,7 @@ import {
   getAllCustomPlaces,
   getReviews,
   getComments,
+  mockPlaces
 } from "@/lib/places";
 
 type TimeSlot = "morning" | "afternoon" | "evening";
@@ -408,37 +409,52 @@ export default function Discover() {
     loadMore: loadMoreEvents,
   } = useEvents(location);
 
-  const loadData = async (
-    force = false,
-    bbox?: [number, number, number, number],
-    userId?: string,
-  ) => {
-    setMapLoading(true);
+  // FIX #1 + #2: two-phase loading.
+// Phase 1 — show mock + cached custom places instantly (zero wait).
+// Phase 2 — fetch OSM from Overpass in background, merge when ready.
+const loadData = async (
+  force = false,
+  bbox?: [number, number, number, number],
+  userId?: string,
+) => {
+  const uid = userId ?? meId;
 
-    const uid = userId ?? meId;
+  // ── Phase 1: instant display ──────────────────────────────────────────
+  const quickCustom = uid
+    ? getAllCustomPlaces().filter((p) => p.isPublic || p.addedByUserId === uid)
+    : getAllCustomPlaces().filter((p) => p.isPublic);
 
-    try {
-      if (force) invalidateRegionCache();
+  // Show what we have right away — user sees pins before Overpass responds
+  if (allPlaces.length === 0) {
+    const quick = [...quickCustom, ...mockPlaces];
+    setAllPlaces(quick);
+    setMapPins(quick.map(placeToMapPin));
+  }
 
-      const places = await loadRegion(force, bbox, uid || undefined);
+  // ── Phase 2: full OSM fetch ───────────────────────────────────────────
+  setMapLoading(true);
 
-      const ownPlaces = uid
-        ? getAllCustomPlaces().filter((p) => p.addedByUserId === uid)
-        : [];
+  try {
+    if (force) invalidateRegionCache();
 
-      const loadedIds = new Set(places.map((p) => p.id));
+    const places = await loadRegion(force, bbox, uid || undefined);
 
-      const merged = [
-        ...ownPlaces.filter((p) => !loadedIds.has(p.id)),
-        ...places,
-      ];
+    const ownPlaces = uid
+      ? getAllCustomPlaces().filter((p) => p.addedByUserId === uid)
+      : [];
 
-      setAllPlaces(merged);
-      setMapPins(merged.map(placeToMapPin));
-    } finally {
-      setMapLoading(false);
-    }
-  };
+    const loadedIds = new Set(places.map((p) => p.id));
+    const merged = [
+      ...ownPlaces.filter((p) => !loadedIds.has(p.id)),
+      ...places,
+    ];
+
+    setAllPlaces(merged);
+    setMapPins(merged.map(placeToMapPin));
+  } finally {
+    setMapLoading(false);
+  }
+};
 
   useEffect(() => {
     const init = async () => {
