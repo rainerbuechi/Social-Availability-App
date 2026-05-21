@@ -41,13 +41,16 @@ function parseDateInput(value: string): Date | null {
   return date;
 }
 
-function endOfDateInput(value: string): Date | null {
-  if (!value) return null;
+function startOfDay(date: Date): Date {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
 
-  const date = new Date(`${value}T23:59:59.999`);
-  if (!Number.isFinite(date.getTime())) return null;
-
-  return date;
+function endOfDay(date: Date): Date {
+  const copy = new Date(date);
+  copy.setHours(23, 59, 59, 999);
+  return copy;
 }
 
 function formatDateLabel(value: string) {
@@ -63,23 +66,25 @@ function formatDateLabel(value: string) {
   });
 }
 
-function eventMatchesDateRange(
-  event: AppEvent,
-  fromDate: string,
-  toDate: string,
-) {
-  if (!fromDate && !toDate) return true;
+function eventMatchesDate(event: AppEvent, selectedDate: string) {
+  if (!selectedDate) return true;
 
-  const eventDate = new Date(event.startDate);
-  if (!Number.isFinite(eventDate.getTime())) return false;
+  const selected = parseDateInput(selectedDate);
+  if (!selected) return true;
 
-  const from = parseDateInput(fromDate);
-  const to = endOfDateInput(toDate);
+  const selectedStart = startOfDay(selected);
+  const selectedEnd = endOfDay(selected);
 
-  if (from && eventDate < from) return false;
-  if (to && eventDate > to) return false;
+  const eventStart = new Date(event.startDate);
+  if (!Number.isFinite(eventStart.getTime())) return false;
 
-  return true;
+  const eventEnd = event.endDate ? new Date(event.endDate) : null;
+
+  if (eventEnd && Number.isFinite(eventEnd.getTime())) {
+    return eventStart <= selectedEnd && eventEnd >= selectedStart;
+  }
+
+  return eventStart >= selectedStart && eventStart <= selectedEnd;
 }
 
 export default function EventsTab({
@@ -92,16 +97,28 @@ export default function EventsTab({
   onRefresh,
   onLoadMore,
 }: Props) {
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [selectedCategories, setSelectedCategories] = useState<CategoryFilter[]>([]);
+  const [selectedDate, setSelectedDate] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<AppEvent[] | null>(null);
   const [editingEvent, setEditingEvent] = useState<AppEvent | null>(null);
 
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
-  const hasDateFilter = Boolean(fromDate || toDate);
+  const hasDateFilter = Boolean(selectedDate);
+
+  const toggleCategory = (category: CategoryFilter) => {
+    if (category === "all") {
+      setSelectedCategories([]);
+      return;
+    }
+
+    setSelectedCategories((current) =>
+      current.includes(category)
+        ? current.filter((item) => item !== category)
+        : [...current, category],
+    );
+  };
 
   const communityEvents = useMemo(
     () => events.filter((e) => e.source === "community"),
@@ -116,13 +133,14 @@ export default function EventsTab({
   const filtered = useMemo(() => {
     return externalEvents.filter((event) => {
       const matchesCategory =
-        categoryFilter === "all" || event.category === categoryFilter;
+        selectedCategories.length === 0 ||
+        selectedCategories.includes(event.category as CategoryFilter);
 
-      const matchesDate = eventMatchesDateRange(event, fromDate, toDate);
+      const matchesDate = eventMatchesDate(event, selectedDate);
 
       return matchesCategory && matchesDate;
     });
-  }, [externalEvents, categoryFilter, fromDate, toDate]);
+  }, [externalEvents, selectedCategories, selectedDate]);
 
   const grouped = useMemo(() => groupEvents(filtered), [filtered]);
 
@@ -151,90 +169,62 @@ export default function EventsTab({
   }, [onLoadMore, hasMore, loading, loadingMore]);
 
   const clearDateFilter = () => {
-    setFromDate("");
-    setToDate("");
+    setSelectedDate("");
   };
 
   return (
     <>
       {/* Category filters */}
       <div className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 pb-1 pt-3">
-        {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            onClick={() => setCategoryFilter(f.value)}
-            className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
-              categoryFilter === f.value
-                ? "border-[#DA2C43] bg-[#DA2C43] text-white"
-                : "border-border bg-card text-muted-foreground hover:bg-primary-soft/70 hover:text-primary"
-            }`}
-          >
-            {f.emoji} {f.label}
-          </button>
-        ))}
+        {FILTERS.map((f) => {
+          const isActive =
+            f.value === "all"
+              ? selectedCategories.length === 0
+              : selectedCategories.includes(f.value);
+
+          return (
+            <button
+              key={f.value}
+              onClick={() => toggleCategory(f.value)}
+              className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors ${
+                isActive
+                  ? "border-[#DA2C43] bg-[#DA2C43] text-white"
+                  : "border-border bg-card text-muted-foreground hover:bg-primary-soft/70 hover:text-primary"
+              }`}
+            >
+              {f.emoji} {f.label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Exact date filters */}
-      <div className="mx-4 mt-2 rounded-xl border border-border bg-card px-3 py-2 shadow-sm">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Date
-          </p>
+      {/* Single date filter */}
+      <div className="mx-4 mt-2 flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 shadow-sm">
+        <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Date
+        </span>
 
-          {hasDateFilter && (
-            <button
-              onClick={clearDateFilter}
-              className="flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-muted"
-            >
-              <X className="h-3 w-3" />
-              Clear
-            </button>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <label className="min-w-0">
-            <span className="mb-1 block text-[10px] font-medium text-muted-foreground">
-              From
-            </span>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="h-9 w-full rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-[#DA2C43]"
-            />
-          </label>
-
-          <label className="min-w-0">
-            <span className="mb-1 block text-[10px] font-medium text-muted-foreground">
-              To
-            </span>
-            <input
-              type="date"
-              value={toDate}
-              min={fromDate || undefined}
-              onChange={(e) => setToDate(e.target.value)}
-              className="h-9 w-full rounded-lg border border-border bg-background px-2 text-xs text-foreground outline-none focus:border-[#DA2C43]"
-            />
-          </label>
-        </div>
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="h-7 min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none"
+        />
 
         {hasDateFilter && (
-          <p className="mt-2 text-[11px] text-muted-foreground">
-            Showing{" "}
-            {fromDate ? (
-              <span className="font-medium text-foreground">
-                from {formatDateLabel(fromDate)}
-              </span>
-            ) : (
-              "all dates"
-            )}{" "}
-            {toDate && (
-              <span className="font-medium text-foreground">
-                to {formatDateLabel(toDate)}
-              </span>
-            )}
-          </p>
+          <>
+            <span className="hidden shrink-0 text-[11px] text-muted-foreground sm:inline">
+              {formatDateLabel(selectedDate)}
+            </span>
+
+            <button
+              onClick={clearDateFilter}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+              aria-label="Clear date filter"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </>
         )}
       </div>
 

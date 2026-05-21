@@ -1,14 +1,14 @@
-import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppEvent, EventCategory } from "@/lib/types";
 import { addCommunityEvent, editCommunityEvent } from "@/lib/events";
 import { toast } from "sonner";
 
-const CATEGORIES: { value: EventCategory; label: string; emoji: string }[] = [
+const DEFAULT_CATEGORIES: { value: EventCategory; label: string; emoji: string }[] = [
   { value: "music", label: "Music", emoji: "🎵" },
-  { value: "arts",  label: "Arts",  emoji: "🎨" },
+  { value: "arts", label: "Arts", emoji: "🎨" },
   { value: "sport", label: "Sport", emoji: "⚽" },
   { value: "party", label: "Party", emoji: "🎉" },
   { value: "other", label: "Other", emoji: "📅" },
@@ -17,34 +17,85 @@ const CATEGORIES: { value: EventCategory; label: string; emoji: string }[] = [
 interface Props {
   city: string;
   authorId: string;
-  editEvent?: AppEvent;       // if provided → edit mode
+  editEvent?: AppEvent;
   onClose: () => void;
   onAdded: () => void;
 }
 
+function normalizeCustomCategory(value: string): EventCategory {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "") as EventCategory;
+}
+
+function formatCustomCategoryLabel(value: string): string {
+  return value
+    .trim()
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getCategoryLabel(category: EventCategory) {
+  const existing = DEFAULT_CATEGORIES.find((item) => item.value === category);
+  return existing?.label ?? formatCustomCategoryLabel(category);
+}
+
 export default function AddEventSheet({
-  city, authorId, editEvent, onClose, onAdded,
+  city,
+  authorId,
+  editEvent,
+  onClose,
+  onAdded,
 }: Props) {
   const isEdit = !!editEvent;
 
-  const [title,      setTitle]      = useState("");
-  const [venue,      setVenue]      = useState("");
-  const [area,       setArea]       = useState("");
-  const [startDate,  setStartDate]  = useState("");
-  const [time,       setTime]       = useState("");
-  const [endDate,    setEndDate]    = useState("");
+  const [title, setTitle] = useState("");
+  const [venue, setVenue] = useState("");
+  const [area, setArea] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [time, setTime] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [isMultiDay, setIsMultiDay] = useState(false);
-  const [category,   setCategory]   = useState<EventCategory>("other");
-  const [price,      setPrice]      = useState("");
+  const [category, setCategory] = useState<EventCategory>("other");
+  const [customCategory, setCustomCategory] = useState("");
+  const [price, setPrice] = useState("");
 
-  // Pre-fill when editing
+  const isKnownCategory = useMemo(
+    () => DEFAULT_CATEGORIES.some((item) => item.value === category),
+    [category],
+  );
+
+  const visibleCategories = useMemo(() => {
+    if (!editEvent || isKnownCategory) return DEFAULT_CATEGORIES;
+
+    return [
+      ...DEFAULT_CATEGORIES,
+      {
+        value: category,
+        label: getCategoryLabel(category),
+        emoji: "✨",
+      },
+    ];
+  }, [editEvent, isKnownCategory, category]);
+
   useEffect(() => {
     if (!editEvent) return;
+
     setTitle(editEvent.title);
     setVenue(editEvent.venueName);
     setArea(editEvent.area ?? "");
     setPrice(editEvent.price ?? "");
     setCategory(editEvent.category);
+
+    const known = DEFAULT_CATEGORIES.some(
+      (item) => item.value === editEvent.category,
+    );
+
+    if (!known) {
+      setCustomCategory(getCategoryLabel(editEvent.category));
+    }
 
     if (editEvent.endDate) {
       setIsMultiDay(true);
@@ -58,31 +109,48 @@ export default function AddEventSheet({
     }
   }, [editEvent]);
 
+  const handleAddCustomCategory = () => {
+    const normalized = normalizeCustomCategory(customCategory);
+
+    if (!normalized) {
+      toast.error("Enter a category name first");
+      return;
+    }
+
+    if (normalized === "community") {
+      toast.error("Community is reserved");
+      return;
+    }
+
+    setCategory(normalized);
+    toast.success(`Category "${formatCustomCategoryLabel(normalized)}" selected`);
+  };
+
   const handleSubmit = () => {
     if (!title.trim() || !venue.trim() || !startDate) {
       toast.error("Title, venue and date are required");
       return;
     }
+
     if (isMultiDay && endDate && endDate < startDate) {
       toast.error("End date must be after start date");
       return;
     }
 
-    const computedStart = (!isMultiDay && time)
-      ? `${startDate}T${time}:00`
-      : startDate;
+    const computedStart =
+      !isMultiDay && time ? `${startDate}T${time}:00` : startDate;
 
     const computedEnd = isMultiDay && endDate ? endDate : undefined;
 
     const payload = {
-      title:     title.trim(),
+      title: title.trim(),
       category,
       venueName: venue.trim(),
-      area:      area.trim() || undefined,
+      area: area.trim() || undefined,
       city,
       startDate: computedStart,
-      endDate:   computedEnd,
-      price:     price.trim() || undefined,
+      endDate: computedEnd,
+      price: price.trim() || undefined,
     };
 
     if (isEdit && editEvent) {
@@ -125,12 +193,14 @@ export default function AddEventSheet({
             onChange={(e) => setTitle(e.target.value)}
             className="rounded-xl"
           />
+
           <Input
             placeholder="Venue name *"
             value={venue}
             onChange={(e) => setVenue(e.target.value)}
             className="rounded-xl"
           />
+
           <Input
             placeholder="Area / neighbourhood"
             value={area}
@@ -140,7 +210,8 @@ export default function AddEventSheet({
 
           {/* Multi-day toggle */}
           <button
-            onClick={() => setIsMultiDay((v) => !v)}
+            type="button"
+            onClick={() => setIsMultiDay((value) => !value)}
             className={`flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-xs font-semibold transition-colors ${
               isMultiDay
                 ? "border-[#DA2C43] bg-[#DA2C43]/10 text-[#DA2C43]"
@@ -154,7 +225,9 @@ export default function AddEventSheet({
           {isMultiDay ? (
             <div className="flex gap-2">
               <div className="flex-1">
-                <p className="mb-1 text-[10px] text-muted-foreground">Start date</p>
+                <p className="mb-1 text-[10px] text-muted-foreground">
+                  Start date
+                </p>
                 <Input
                   type="date"
                   value={startDate}
@@ -162,8 +235,11 @@ export default function AddEventSheet({
                   className="rounded-xl"
                 />
               </div>
+
               <div className="flex-1">
-                <p className="mb-1 text-[10px] text-muted-foreground">End date</p>
+                <p className="mb-1 text-[10px] text-muted-foreground">
+                  End date
+                </p>
                 <Input
                   type="date"
                   value={endDate}
@@ -181,6 +257,7 @@ export default function AddEventSheet({
                 onChange={(e) => setStartDate(e.target.value)}
                 className="flex-1 rounded-xl"
               />
+
               <Input
                 type="time"
                 value={time}
@@ -197,20 +274,61 @@ export default function AddEventSheet({
             className="rounded-xl"
           />
 
-          <div className="flex flex-wrap gap-2 pt-1">
-            {CATEGORIES.map((c) => (
+          {/* Categories */}
+          <div className="space-y-2 pt-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Category
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+              {visibleCategories.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => setCategory(c.value)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    category === c.value
+                      ? "border-[#DA2C43] bg-[#DA2C43] text-white"
+                      : "border-border bg-card text-muted-foreground"
+                  }`}
+                >
+                  {c.emoji} {c.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <Input
+                placeholder="Create custom category"
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddCustomCategory();
+                  }
+                }}
+                className="rounded-xl text-xs"
+              />
+
               <button
-                key={c.value}
-                onClick={() => setCategory(c.value)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  category === c.value
-                    ? "border-[#DA2C43] bg-[#DA2C43] text-white"
-                    : "border-border bg-card text-muted-foreground"
-                }`}
+                type="button"
+                onClick={handleAddCustomCategory}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground hover:bg-muted"
+                aria-label="Add custom category"
               >
-                {c.emoji} {c.label}
+                <Plus className="h-4 w-4" />
               </button>
-            ))}
+            </div>
+
+            {!isKnownCategory && (
+              <p className="text-[11px] text-muted-foreground">
+                Selected custom category:{" "}
+                <span className="font-semibold text-foreground">
+                  {getCategoryLabel(category)}
+                </span>
+              </p>
+            )}
           </div>
         </div>
 

@@ -261,7 +261,8 @@ export type EventCategory =
   | "education"
   | "outdoor"
   | "community"
-  | "other";
+  | "other"
+  | (string & {});
 
 export interface AppEvent {
   id: string;
