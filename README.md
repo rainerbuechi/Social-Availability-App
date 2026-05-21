@@ -1,4 +1,4 @@
-# Down? 🔴
+# Down? 
 
 **See who's free. Make plans happen.**
 
