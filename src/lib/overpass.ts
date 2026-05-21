@@ -1,16 +1,20 @@
 import { Place, PlaceCategory } from "./types";
 
-const OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
+// In local dev: call Overpass directly (no CORS issue on localhost).
+// In production: route through our /api/overpass serverless proxy (fixes CORS).
+const OVERPASS_ENDPOINT = import.meta.env.PROD
+  ? "/api/overpass"
+  : "https://overpass-api.de/api/interpreter";
 
 const CATEGORY_TO_OSM: Record<PlaceCategory, { key: string; value: string }[]> = {
   cafe:         [{ key: "amenity", value: "cafe" }],
   bar:          [{ key: "amenity", value: "bar" }, { key: "amenity", value: "pub" }],
   sports: [
-  { key: "leisure", value: "sports_centre" },
-  { key: "leisure", value: "pitch" },
-  { key: "leisure", value: "track" },
-  { key: "leisure", value: "swimming_pool" },
-],
+    { key: "leisure", value: "sports_centre" },
+    { key: "leisure", value: "pitch" },
+    { key: "leisure", value: "track" },
+    { key: "leisure", value: "swimming_pool" },
+  ],
   restaurant:   [{ key: "amenity", value: "restaurant" }],
   library:      [{ key: "amenity", value: "library" }],
   park:         [{ key: "leisure", value: "park" }],
@@ -22,7 +26,6 @@ const CATEGORY_TO_OSM: Record<PlaceCategory, { key: string; value: string }[]> =
   other:        [],
 };
 
-// Zurich to Rapperswil bbox [south, west, north, east]
 export const ZURICH_BBOX: [number, number, number, number] = [47.18, 8.44, 47.44, 8.88];
 
 export function buildOverpassQuery(
@@ -92,13 +95,29 @@ export async function fetchPlacesFromOverpass(
   categories: PlaceCategory[],
 ): Promise<Place[]> {
   const query = buildOverpassQuery(bbox, categories);
-  const response = await fetch(OVERPASS_ENDPOINT, {
-    method: "POST",
-    body: `data=${encodeURIComponent(query)}`,
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-  });
+
+  let response: Response;
+
+  if (import.meta.env.PROD) {
+    // Production: call our proxy with a JSON body
+    response = await fetch(OVERPASS_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+  } else {
+    // Local dev: call Overpass directly with form-encoded body
+    response = await fetch(OVERPASS_ENDPOINT, {
+      method: "POST",
+      body: `data=${encodeURIComponent(query)}`,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+  }
+
   if (!response.ok) throw new Error(`Overpass ${response.status}`);
+
   const data: OverpassResponse = await response.json();
+
   return data.elements
     .filter((el) => el.tags?.name?.trim())
     .map(osmNodeToPlace);
