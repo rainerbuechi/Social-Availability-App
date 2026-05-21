@@ -1,10 +1,8 @@
 import { Place, PlaceCategory } from "./types";
 
-// In local dev: call Overpass directly (no CORS issue on localhost).
-// In production: route through our /api/overpass serverless proxy (fixes CORS).
-const OVERPASS_ENDPOINT = import.meta.env.PROD
-  ? "/api/overpass"
-  : "https://overpass-api.de/api/interpreter";
+// overpass.kumi.systems is a public Overpass mirror that supports CORS,
+// so it works from both localhost and production without any proxy.
+const OVERPASS_ENDPOINT = "https://overpass.kumi.systems/api/interpreter";
 
 const CATEGORY_TO_OSM: Record<PlaceCategory, { key: string; value: string }[]> = {
   cafe:         [{ key: "amenity", value: "cafe" }],
@@ -96,23 +94,11 @@ export async function fetchPlacesFromOverpass(
 ): Promise<Place[]> {
   const query = buildOverpassQuery(bbox, categories);
 
-  let response: Response;
-
-  if (import.meta.env.PROD) {
-    // Production: call our proxy with a JSON body
-    response = await fetch(OVERPASS_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query }),
-    });
-  } else {
-    // Local dev: call Overpass directly with form-encoded body
-    response = await fetch(OVERPASS_ENDPOINT, {
-      method: "POST",
-      body: `data=${encodeURIComponent(query)}`,
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    });
-  }
+  const response = await fetch(OVERPASS_ENDPOINT, {
+    method: "POST",
+    body: `data=${encodeURIComponent(query)}`,
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  });
 
   if (!response.ok) throw new Error(`Overpass ${response.status}`);
 
