@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,32 @@ export default function Login() {
   const [username, setUsername] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function redirectIfLoggedIn() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!isMounted) return;
+
+      if (session) {
+        navigate("/feed", { replace: true });
+        return;
+      }
+
+      setIsCheckingSession(false);
+    }
+
+    redirectIfLoggedIn();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [navigate]);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -35,15 +61,26 @@ export default function Login() {
       password,
     });
 
-    setIsLoading(false);
-
     if (error) {
+      setIsLoading(false);
       toast.error(error.message);
       return;
     }
 
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    setIsLoading(false);
+
+    if (sessionError || !session) {
+      toast.error("Login worked, but the session was not saved. Please try again.");
+      return;
+    }
+
     toast.success("Welcome back!");
-    navigate("/feed");
+    navigate("/feed", { replace: true });
   };
 
   const handleSignup = async (e: FormEvent) => {
@@ -64,6 +101,7 @@ export default function Login() {
       email: cleanEmail,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/feed`,
         data: {
           display_name: cleanDisplayName,
           username: cleanUsername,
@@ -95,9 +133,25 @@ export default function Login() {
 
     setIsLoading(false);
 
+    if (!data.session) {
+      toast.success("Account created! Please check your email to confirm your account.");
+      setStep("login");
+      return;
+    }
+
     toast.success("Account created!");
-    navigate("/feed");
+    navigate("/feed", { replace: true });
   };
+
+  if (isCheckingSession) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-200">
+        <div className="text-sm font-medium text-muted-foreground">
+          Loading...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-200">
@@ -124,6 +178,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
+                  autoComplete="email"
                   required
                 />
               </div>
@@ -137,6 +192,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  autoComplete="current-password"
                   required
                 />
               </div>
@@ -172,6 +228,7 @@ export default function Login() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Your Name"
+                  autoComplete="name"
                   required
                 />
               </div>
@@ -184,6 +241,7 @@ export default function Login() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="yourname"
+                  autoComplete="username"
                   required
                 />
               </div>
@@ -197,6 +255,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
+                  autoComplete="email"
                   required
                 />
               </div>
@@ -210,6 +269,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  autoComplete="new-password"
                   minLength={6}
                   required
                 />
