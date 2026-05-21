@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus } from "lucide-react";
 
@@ -68,6 +68,66 @@ function formatDateLabel(date: Date) {
     day: "numeric",
     month: "long",
   });
+}
+
+type TimePickerFieldProps = {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+};
+
+function TimePickerField({ id, label, value, onChange }: TimePickerFieldProps) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const openPicker = () => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    input.focus();
+
+    const pickerInput = input as HTMLInputElement & {
+      showPicker?: () => void;
+    };
+
+    if (pickerInput.showPicker) {
+      pickerInput.showPicker();
+    } else {
+      input.click();
+    }
+  };
+
+  return (
+    <div className="min-w-0 space-y-2">
+      <Label
+        htmlFor={id}
+        className="block text-xs font-semibold text-muted-foreground"
+      >
+        {label}
+      </Label>
+
+      <div className="relative overflow-hidden">
+        <button
+          type="button"
+          onClick={openPicker}
+          className="flex h-12 w-full min-w-0 items-center justify-center rounded-2xl border border-input bg-background px-3 text-center text-lg font-semibold tabular-nums shadow-sm transition-colors hover:bg-primary-soft/60"
+        >
+          {value}
+        </button>
+
+        <input
+          ref={inputRef}
+          id={id}
+          type="time"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="pointer-events-none absolute left-1/2 top-1/2 h-px w-px -translate-x-1/2 -translate-y-1/2 opacity-0"
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+      </div>
+    </div>
+  );
 }
 
 export default function CreateStatus() {
@@ -267,7 +327,7 @@ export default function CreateStatus() {
 
       <form
         onSubmit={onSubmit}
-        className="no-scrollbar flex-1 space-y-6 overflow-y-auto p-4 pb-28"
+        className="no-scrollbar flex-1 space-y-6 overflow-x-hidden overflow-y-auto p-4 pb-32"
       >
         <section>
           <Label className="mb-2 block">Activity</Label>
@@ -305,7 +365,7 @@ export default function CreateStatus() {
             )}
           >
             <div className="mb-2 flex items-center justify-between gap-3">
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-semibold">Custom activity</p>
                 <p className="text-xs text-muted-foreground">
                   Add your own emoji and activity name.
@@ -313,13 +373,13 @@ export default function CreateStatus() {
               </div>
 
               {customIsSelected && (
-                <span className="rounded-full bg-[#DA2C43] px-2 py-0.5 text-xs font-semibold text-white">
+                <span className="shrink-0 rounded-full bg-[#DA2C43] px-2 py-0.5 text-xs font-semibold text-white">
                   Selected
                 </span>
               )}
             </div>
 
-            <div className="grid grid-cols-[72px_1fr] gap-2">
+            <div className="grid grid-cols-[64px_minmax(0,1fr)] gap-2">
               <Input
                 value={customEmoji}
                 onChange={(e) => setCustomEmoji(e.target.value)}
@@ -333,7 +393,7 @@ export default function CreateStatus() {
                 onChange={(e) => setCustomLabel(e.target.value)}
                 placeholder="e.g. Cinema, Walk, Gaming"
                 maxLength={24}
-                className="h-11 rounded-2xl bg-background focus-visible:ring-[#DA2C43]"
+                className="h-11 min-w-0 rounded-2xl bg-background focus-visible:ring-[#DA2C43]"
               />
             </div>
 
@@ -425,29 +485,28 @@ export default function CreateStatus() {
           </p>
         </section>
 
-        <section className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label htmlFor="start">Start</Label>
+        <section className="space-y-2">
+          <Label>Time</Label>
 
-            <Input
-              id="start"
-              type="time"
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-              className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
-            />
-          </div>
+          <div className="w-full max-w-full overflow-hidden rounded-3xl border border-border bg-card p-4 shadow-sm">
+            <div className="grid w-full grid-cols-2 gap-3">
+              <TimePickerField
+                id="start"
+                label="Start"
+                value={start}
+                onChange={setStart}
+              />
 
-          <div className="space-y-2">
-            <Label htmlFor="end">End</Label>
+              <TimePickerField
+                id="end"
+                label="End"
+                value={end}
+                onChange={setEnd}
+              />
+            </div>
 
-            <Input
-              id="end"
-              type="time"
-              value={end}
-              onChange={(e) => setEnd(e.target.value)}
-              className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
-            />
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+            </p>
           </div>
         </section>
 
@@ -471,18 +530,18 @@ export default function CreateStatus() {
               type="button"
               onClick={() => setGroupId("")}
               className={cn(
-                "flex w-full items-center justify-between rounded-2xl border-2 p-3 text-left shadow-sm transition-colors",
+                "flex w-full items-center justify-between gap-3 rounded-2xl border-2 p-3 text-left shadow-sm transition-colors",
                 groupId === ""
                   ? "border-[#DA2C43] bg-[#DA2C43]/10"
                   : "border-border bg-card hover:border-primary/35 hover:bg-primary-soft/70",
               )}
             >
-              <span className="flex items-center gap-2 text-sm font-semibold">
+              <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
                 <span className="text-lg">👥</span>
-                All friends
+                <span className="truncate">All friends</span>
               </span>
 
-              <span className="text-xs text-muted-foreground">
+              <span className="shrink-0 text-xs text-muted-foreground">
                 Your accepted friends
               </span>
             </button>
@@ -496,18 +555,18 @@ export default function CreateStatus() {
                   type="button"
                   onClick={() => setGroupId(group.id)}
                   className={cn(
-                    "flex w-full items-center justify-between rounded-2xl border-2 p-3 text-left shadow-sm transition-colors",
+                    "flex w-full items-center justify-between gap-3 rounded-2xl border-2 p-3 text-left shadow-sm transition-colors",
                     active
                       ? "border-[#DA2C43] bg-[#DA2C43]/10"
                       : "border-border bg-card hover:border-primary/35 hover:bg-primary-soft/70",
                   )}
                 >
-                  <span className="flex items-center gap-2 text-sm font-semibold">
+                  <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
                     <span className="text-lg">{group.emoji}</span>
-                    {group.name}
+                    <span className="truncate">{group.name}</span>
                   </span>
 
-                  <span className="text-xs text-muted-foreground">
+                  <span className="shrink-0 text-xs text-muted-foreground">
                     {group.memberIds.length} people
                   </span>
                 </button>
