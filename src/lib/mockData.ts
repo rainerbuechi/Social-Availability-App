@@ -107,4 +107,8 @@ export const defaultPrivacy: PrivacySettings = {
   defaultPrecision: "approximate",
   shareReadReceipts: true,
   allowNotifications: true,
+  notifyNewPost: true,
+  notifyGroupMessage: true,
+  notifyJoinedActivity: true,
+  notifyNewPool: true,
 };
