@@ -5,20 +5,46 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { getPrivacy, listGroups, updatePrivacy } from "@/lib/api";
+import {
+  subscribeToPush,
+  unsubscribeFromPush,
+  isPushSupported,
+} from "@/lib/notifications";
 import { FriendGroup, PrivacySettings } from "@/lib/types";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
 
-type ProfileUser = {
-  id: string;
-  name: string;
-  username: string;
-  email: string;
-};
+type ProfileUser = { id: string; name: string; username: string; email: string };
+
+const NOTIFICATION_PREFS: {
+  key: keyof PrivacySettings;
+  label: string;
+  desc: string;
+}[] = [
+  {
+    key: "notifyNewPost",
+    label: "New activity from friends",
+    desc: "When someone posts they're free or doing something",
+  },
+  {
+    key: "notifyGroupMessage",
+    label: "Group chat messages",
+    desc: "Includes a preview of the message — like WhatsApp",
+  },
+  {
+    key: "notifyJoinedActivity",
+    label: "Someone joins your activity or pool",
+    desc: "When friends respond to your post or pool",
+  },
+  {
+    key: "notifyNewPool",
+    label: "New waiting pool in your groups",
+    desc: "When someone opens a pool you might want to join",
+  },
+];
 
 export default function Profile() {
   const navigate = useNavigate();
-
   const [user, setUser] = useState<ProfileUser | null>(null);
   const [groups, setGroups] = useState<FriendGroup[]>([]);
   const [privacy, setPrivacy] = useState<PrivacySettings | null>(null);
@@ -26,24 +52,18 @@ export default function Profile() {
   const [editName, setEditName] = useState("");
   const [editUsername, setEditUsername] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [notifLoading, setNotifLoading] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadProfile() {
       setIsLoading(true);
-
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
+        const { data: { session } } = await supabase.auth.getSession();
         const authUser = session?.user;
 
-        if (!authUser) {
-          navigate("/", { replace: true });
-          return;
-        }
+        if (!authUser) { navigate("/", { replace: true }); return; }
 
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
@@ -51,20 +71,16 @@ export default function Profile() {
           .eq("id", authUser.id)
           .maybeSingle();
 
-        if (profileError) {
-          toast.error(profileError.message);
-        }
+        if (profileError) toast.error(profileError.message);
 
         const fallbackName =
           authUser.user_metadata?.display_name ||
           authUser.user_metadata?.name ||
-          authUser.email?.split("@")[0] ||
-          "User";
+          authUser.email?.split("@")[0] || "User";
 
         const fallbackUsername =
           authUser.user_metadata?.username ||
-          authUser.email?.split("@")[0] ||
-          "user";
+          authUser.email?.split("@")[0] || "user";
 
         const loadedUser: ProfileUser = {
           id: authUser.id,
@@ -74,7 +90,6 @@ export default function Profile() {
         };
 
         if (!isMounted) return;
-
         setUser(loadedUser);
         setEditName(loadedUser.name);
         setEditUsername(loadedUser.username);
@@ -85,24 +100,18 @@ export default function Profile() {
         ]);
 
         if (!isMounted) return;
-
         setGroups(loadedGroups);
         setPrivacy(loadedPrivacy);
       } catch (error) {
         console.error(error);
         toast.error("Could not load profile");
       } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        if (isMounted) setIsLoading(false);
       }
     }
 
     loadProfile();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [navigate]);
 
   const update = async (patch: Partial<PrivacySettings>) => {
@@ -110,52 +119,61 @@ export default function Profile() {
     setPrivacy(next);
   };
 
-  const saveProfile = async () => {
+  /** Handle the master notifications toggle */
+  const handleNotificationsToggle = async (enabled: boolean) => {
     if (!user) return;
 
+    if (enabled) {
+      if (!isPushSupported()) {
+        toast.error("Your browser doesn't support push notifications");
+        return;
+      }
+
+      setNotifLoading(true);
+      const success = await subscribeToPush(user.id);
+      setNotifLoading(false);
+
+      if (!success) {
+        toast.error(
+          "Notifications blocked — please allow them in your browser / OS settings, then try again",
+        );
+        return; // don't flip the toggle
+      }
+
+      await update({ allowNotifications: true });
+      toast.success("Notifications enabled 🔔");
+    } else {
+      setNotifLoading(true);
+      await unsubscribeFromPush(user.id);
+      setNotifLoading(false);
+      await update({ allowNotifications: false });
+      toast("Notifications turned off");
+    }
+  };
+
+  const saveProfile = async () => {
+    if (!user) return;
     const cleanName = editName.trim();
     const cleanUsername = editUsername.trim().toLowerCase();
-
     if (!cleanName || !cleanUsername) {
       toast.error("Display name and username are required");
       return;
     }
-
     const { error } = await supabase
       .from("profiles")
-      .update({
-        display_name: cleanName,
-        username: cleanUsername,
-      })
+      .update({ display_name: cleanName, username: cleanUsername })
       .eq("id", user.id);
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    const updatedUser = {
-      ...user,
-      name: cleanName,
-      username: cleanUsername,
-    };
-
-    setUser(updatedUser);
+    if (error) { toast.error(error.message); return; }
+    setUser({ ...user, name: cleanName, username: cleanUsername });
     setEditing(false);
     toast.success("Profile updated");
   };
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
+    if (error) { toast.error(error.message); return; }
     localStorage.clear();
     sessionStorage.clear();
-
     toast.success("Signed out");
     navigate("/", { replace: true });
   };
@@ -174,10 +192,7 @@ export default function Profile() {
     return (
       <div className="flex h-full flex-col overflow-hidden bg-muted/20">
         <div className="no-scrollbar flex flex-1 flex-col items-center justify-center gap-3 overflow-y-auto px-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            Could not load your profile.
-          </p>
-
+          <p className="text-sm text-muted-foreground">Could not load your profile.</p>
           <button
             onClick={() => navigate("/feed")}
             className="rounded-full bg-[#DA2C43] px-4 py-2 text-sm font-semibold text-white"
@@ -190,11 +205,7 @@ export default function Profile() {
   }
 
   const initials = user.name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+    .split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-muted/20">
@@ -205,6 +216,7 @@ export default function Profile() {
       </header>
 
       <div className="no-scrollbar flex-1 overflow-y-auto overflow-x-hidden pb-28">
+        {/* Avatar + name */}
         <section className="flex items-center gap-4 p-5">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xl font-semibold text-primary">
             {initials}
@@ -218,27 +230,23 @@ export default function Profile() {
                 placeholder="Display name"
                 className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
               />
-
               <Input
                 value={editUsername}
                 onChange={(e) => setEditUsername(e.target.value)}
                 placeholder="Username"
                 className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
               />
-
               <button
                 onClick={saveProfile}
                 className="inline-flex items-center gap-1 rounded-full bg-[#DA2C43] px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[#c9273c]"
               >
-                <Check className="h-4 w-4" />
-                Save
+                <Check className="h-4 w-4" /> Save
               </button>
             </div>
           ) : (
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <p className="truncate text-lg font-semibold">{user.name}</p>
-
                 <button
                   onClick={() => setEditing(true)}
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary-soft/70 hover:text-primary"
@@ -247,23 +255,17 @@ export default function Profile() {
                   <Pencil className="h-4 w-4" />
                 </button>
               </div>
-
-              <p className="truncate text-sm text-muted-foreground">
-                @{user.username}
-              </p>
-
-              <p className="truncate text-xs text-muted-foreground">
-                {user.email}
-              </p>
+              <p className="truncate text-sm text-muted-foreground">@{user.username}</p>
+              <p className="truncate text-xs text-muted-foreground">{user.email}</p>
             </div>
           )}
         </section>
 
+        {/* Social */}
         <section className="px-5">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Social
           </h2>
-
           <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
             <button
               onClick={() => navigate("/friends")}
@@ -273,17 +275,16 @@ export default function Profile() {
                 <UserPlus className="h-4 w-4 text-muted-foreground" />
                 Manage friends
               </span>
-
               <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </button>
           </div>
         </section>
 
+        {/* Default group */}
         <section className="mt-6 px-5">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Default group
           </h2>
-
           <div className="space-y-2">
             {groups.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-border bg-card p-4 text-sm text-muted-foreground shadow-sm">
@@ -292,7 +293,6 @@ export default function Profile() {
             ) : (
               groups.map((g) => {
                 const active = g.id === privacy.defaultGroupId;
-
                 return (
                   <button
                     key={g.id}
@@ -308,7 +308,6 @@ export default function Profile() {
                       <span className="text-lg">{g.emoji}</span>
                       {g.name}
                     </span>
-
                     {active && (
                       <span className="rounded-full bg-[#DA2C43] px-2 py-0.5 text-xs font-semibold text-white">
                         Default
@@ -321,12 +320,14 @@ export default function Profile() {
           </div>
         </section>
 
+        {/* Privacy */}
         <section className="mt-6 px-5">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Privacy
           </h2>
 
-          <div className="divide-y divide-border overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+          <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+            {/* Read receipts */}
             <div className="flex items-center justify-between gap-4 p-4">
               <div>
                 <p className="text-sm font-semibold">Read receipts</p>
@@ -334,7 +335,6 @@ export default function Profile() {
                   Let friends see when you've seen their post
                 </p>
               </div>
-
               <Switch
                 checked={privacy.shareReadReceipts}
                 onCheckedChange={(v) => update({ shareReadReceipts: v })}
@@ -342,23 +342,54 @@ export default function Profile() {
               />
             </div>
 
-            <div className="flex items-center justify-between gap-4 p-4">
+            {/* Master notifications toggle */}
+            <div className="flex items-center justify-between gap-4 border-t border-border p-4">
               <div>
                 <p className="text-sm font-semibold">Notifications</p>
                 <p className="text-xs text-muted-foreground">
-                  Pings when friends are down
+                  {notifLoading
+                    ? "Updating…"
+                    : privacy.allowNotifications
+                    ? "Tap a type below to customise"
+                    : "Enable to get pinged when things happen"}
                 </p>
               </div>
-
               <Switch
                 checked={privacy.allowNotifications}
-                onCheckedChange={(v) => update({ allowNotifications: v })}
+                disabled={notifLoading}
+                onCheckedChange={handleNotificationsToggle}
                 className="data-[state=checked]:bg-[#DA2C43]"
               />
             </div>
+
+            {/* Sub-toggles — only shown when master is ON */}
+            {privacy.allowNotifications && (
+              <div className="border-t border-border bg-muted/30">
+                {NOTIFICATION_PREFS.map(({ key, label, desc }, i) => (
+                  <div
+                    key={key}
+                    className={cn(
+                      "flex items-center justify-between gap-4 px-4 py-3 pl-7",
+                      i < NOTIFICATION_PREFS.length - 1 && "border-b border-border/60",
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold">{label}</p>
+                      <p className="text-[11px] text-muted-foreground">{desc}</p>
+                    </div>
+                    <Switch
+                      checked={privacy[key] as boolean}
+                      onCheckedChange={(v) => update({ [key]: v })}
+                      className="scale-90 data-[state=checked]:bg-[#DA2C43]"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
+        {/* Sign out */}
         <section className="mt-6 px-5 pb-4">
           <button
             onClick={handleLogout}

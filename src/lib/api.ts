@@ -26,6 +26,7 @@ import {
   users as mockUsers,
 } from "./mockData";
 import { supabase } from "./supabaseClient";
+import { sendNotification } from "./notifications";
 
 /* ── Storage helpers ─────────────────────────────── */
 
@@ -874,6 +875,15 @@ export async function createPost(
     throw new Error(error.message);
   }
 
+  (async () => {
+    try {
+      const group = await getGroup(input.visibleToGroupId);
+      const others = (group?.memberIds ?? []).filter((id) => id !== me.id);
+      sendNotification(others, `${me.name} is ${input.status}`,
+        input.message || "Just posted they're free", "/feed", "new-post");
+    } catch {}
+  })();
+
   return mapSupabasePost(data as SupabasePostRow);
 }
 
@@ -1010,6 +1020,15 @@ export async function sendChatMessage(
     throw new Error(error.message);
   }
 
+  (async () => {
+    try {
+      const group = await getGroup(groupId);
+      const others = (group?.memberIds ?? []).filter((id) => id !== me.id);
+      sendNotification(others, `${me.name} in ${group?.name ?? "group"}`,
+        cleanBody, "/groups", `chat-${groupId}`);
+    } catch {}
+  })();
+
   return mapSupabaseChatMessage(data as SupabaseChatMessageRow);
 }
 
@@ -1134,6 +1153,16 @@ export async function joinPost(
     console.error("Join post failed:", error);
     throw new Error(error.message);
   }
+
+  (async () => {
+    try {
+      const post = await getPost(postId);
+      if (post && post.authorId !== me.id) {
+        sendNotification([post.authorId], `${me.name} joined your activity`,
+          responseMessage ?? "Someone is joining!", "/feed", `join-${postId}`);
+      }
+    } catch {}
+  })();
 
   return mapSupabasePostParticipation(data as SupabasePostParticipationRow);
 }
@@ -1357,6 +1386,15 @@ export async function createPool(
     throw new Error(membershipError.message);
   }
 
+  (async () => {
+    try {
+      const group = await getGroup(input.visibleToGroupId);
+      const others = (group?.memberIds ?? []).filter((id) => id !== me.id);
+      sendNotification(others, `${me.name} opened a waiting pool`,
+        input.title, "/feed", `newpool-${pool.id}`);
+    } catch {}
+  })();
+
   return mapSupabasePool(pool, [me.id]);
 }
 
@@ -1403,6 +1441,16 @@ export async function joinPool(poolId: string): Promise<boolean> {
     console.error("Join pool failed:", error);
     return false;
   }
+
+  (async () => {
+    try {
+      const pool = await getPool(poolId);
+      if (pool && pool.authorId !== me.id) {
+        sendNotification([pool.authorId], `${me.name} joined your pool`,
+          pool.title, "/feed", `joinpool-${poolId}`);
+      }
+    } catch {}
+  })();
 
   return true;
 }

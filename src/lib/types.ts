@@ -74,6 +74,11 @@ export interface PrivacySettings {
   defaultPrecision: LocationPrecision;
   shareReadReceipts: boolean;
   allowNotifications: boolean;
+  // Notification sub-preferences
+  notifyNewPost: boolean;
+  notifyGroupMessage: boolean;
+  notifyJoinedActivity: boolean;
+  notifyNewPool: boolean;
 }
 
 export interface WaitingPool {
