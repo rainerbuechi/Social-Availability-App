@@ -109,33 +109,17 @@ export default function Login() {
       },
     });
 
+    setIsLoading(false);
+
     if (error) {
-      setIsLoading(false);
       toast.error(error.message);
       return;
     }
 
-    if (data.user) {
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          display_name: cleanDisplayName,
-          username: cleanUsername,
-        })
-        .eq("id", data.user.id);
-
-      if (profileError) {
-        setIsLoading(false);
-        toast.error(profileError.message);
-        return;
-      }
-    }
-
-    setIsLoading(false);
-
     if (!data.session) {
       toast.success("Account created! Please check your email to confirm your account.");
       setStep("login");
+      setPassword("");
       return;
     }
 
