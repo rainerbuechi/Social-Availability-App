@@ -33,17 +33,14 @@ export function isPushSupported(): boolean {
 export async function subscribeToPush(userId: string): Promise<boolean> {
   if (!isPushSupported()) return false;
   if (!VAPID_PUBLIC_KEY) {
-    console.warn("VITE_VAPID_PUBLIC_KEY not set");
+    console.warn("VITE_VAPID_PUBLIC_KEY not set — check Vercel env vars");
     return false;
   }
 
   try {
-    const permission = await Notification.requestPermission();
-    if (permission !== "granted") return false;
-
+    // Permission already granted by caller — just subscribe
     const registration = await navigator.serviceWorker.ready;
 
-    // Re-use an existing subscription if present
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
@@ -52,7 +49,6 @@ export async function subscribeToPush(userId: string): Promise<boolean> {
       });
     }
 
-    // Upsert into Supabase (one row per user)
     const { error } = await supabase.from("push_subscriptions").upsert(
       { user_id: userId, subscription: subscription.toJSON() },
       { onConflict: "user_id" },

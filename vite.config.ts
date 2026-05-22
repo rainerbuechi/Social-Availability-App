@@ -24,6 +24,7 @@ export default defineConfig({
       manifest: {
         name: "Down?",
         short_name: "Down?",
+        id: "/",  
         description: "See who is free right now",
         theme_color: "#ffffff",
         background_color: "#ffffff",
