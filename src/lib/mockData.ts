@@ -106,9 +106,10 @@ export const defaultPrivacy: PrivacySettings = {
   defaultGroupId: "g1",
   defaultPrecision: "approximate",
   shareReadReceipts: true,
-  allowNotifications: true,
+  allowNotifications: false,
   notifyNewPost: true,
   notifyGroupMessage: true,
   notifyJoinedActivity: true,
   notifyNewPool: true,
+  notifyFriendRequest: true
 };

@@ -356,6 +356,22 @@ export async function sendFriendRequest(userId: string): Promise<Friendship> {
 
   if (error) throw error;
 
+  // Notify the recipient
+  (async () => {
+    try {
+      const me = await getCurrentUser();
+      if (me) {
+        sendNotification(
+          [userId],
+          `${me.name} sent you a friend request`,
+          "Tap to view",
+          "/friends",
+          `friendreq-${meId}`,
+        );
+      }
+    } catch {}
+  })();
+
   return { userId, status: "pending" };
 }
 

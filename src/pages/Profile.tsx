@@ -41,6 +41,11 @@ const NOTIFICATION_PREFS: {
     label: "New waiting pool in your groups",
     desc: "When someone opens a pool you might want to join",
   },
+  {
+    key: "notifyFriendRequest",
+    label: "Friend requests",
+    desc: "When someone wants to add you as a friend",
+  },
 ];
 
 export default function Profile() {
@@ -125,7 +130,16 @@ export default function Profile() {
 
     if (enabled) {
       if (!isPushSupported()) {
-        toast.error("Your browser doesn't support push notifications");
+        toast.error("Push notifications aren't supported on this browser");
+        return;
+      }
+
+      // iOS requires requestPermission to be the FIRST await in a gesture handler
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        toast.error(
+          "Notifications blocked — go to your OS Settings and allow notifications for this app, then try again",
+        );
         return;
       }
 
@@ -134,10 +148,8 @@ export default function Profile() {
       setNotifLoading(false);
 
       if (!success) {
-        toast.error(
-          "Notifications blocked — please allow them in your browser / OS settings, then try again",
-        );
-        return; // don't flip the toggle
+        toast.error("Could not set up notifications — please try again");
+        return;
       }
 
       await update({ allowNotifications: true });

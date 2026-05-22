@@ -79,6 +79,7 @@ export interface PrivacySettings {
   notifyGroupMessage: boolean;
   notifyJoinedActivity: boolean;
   notifyNewPool: boolean;
+  notifyFriendRequest: boolean
 }
 
 export interface WaitingPool {
