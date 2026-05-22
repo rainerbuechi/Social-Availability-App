@@ -1088,15 +1088,24 @@ export async function getRecentMessagesForGroup(
 }
 /* ── Privacy ─────────────────────────────────────── */
 
+const PRIVACY_KEY = "privacy_settings";
+
 export async function getPrivacy(): Promise<PrivacySettings> {
-  return _privacy;
+  try {
+    const raw = localStorage.getItem(PRIVACY_KEY);
+    if (raw) return { ...defaultPrivacy, ...JSON.parse(raw) };
+  } catch {}
+  return { ...defaultPrivacy };
 }
 
 export async function updatePrivacy(
   patch: Partial<PrivacySettings>,
 ): Promise<PrivacySettings> {
-  _privacy = { ..._privacy, ...patch };
-  return _privacy;
+  const current = await getPrivacy();
+  const next = { ...current, ...patch };
+  localStorage.setItem(PRIVACY_KEY, JSON.stringify(next));
+  _privacy = next;
+  return next;
 }
 
 /* ── Participation ───────────────────────────────── */
