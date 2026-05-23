@@ -4,7 +4,7 @@
 
 Down? is a social availability app that makes it easy to share when you're free and spontaneously coordinate with friends. Post what you're up to, mark yourself as down for someone's plans, and discover places and events nearby — all in one place.
 
-> Currently in active development. Running locally / invite-only.
+> Is now live!
 
 ---
 
