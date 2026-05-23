@@ -53,11 +53,19 @@ export async function subscribeToPush(userId: string): Promise<boolean> {
       { user_id: userId, subscription: subscription.toJSON() },
       { onConflict: "user_id" },
     );
-    if (error) console.error("save subscription:", error);
+    if (error) {
+      alert("Supabase error: " + error.message + " | code: " + error.code);
+      console.error("save subscription:", error);
+    } else {
+      alert("Subscription saved successfully!");
+    }
 
     return true;
   } catch (err) {
     console.error("subscribeToPush:", err);
+    // Temporarily surface the real error so we can debug
+    const msg = err instanceof Error ? err.message : JSON.stringify(err);
+    alert("Subscribe error: " + msg);
     return false;
   }
 }
