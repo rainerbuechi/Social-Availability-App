@@ -1196,12 +1196,18 @@ export async function joinPost(
     try {
       const post = await getPost(postId);
       if (post && post.authorId !== me.id) {
+        const activityLabel = post.status.startsWith("custom:")
+          ? post.status.split(":")[1]
+          : post.status;
+        const day = new Date(post.startTime).toLocaleDateString("en-US", {
+          weekday: "long",
+        });
         sendNotification(
           [post.authorId],
           `${me.name} is joining you`,
           responseMessage
             ? `"${responseMessage}"`
-            : "Someone's down for your activity",
+            : `Someone's down for ${activityLabel} on ${day}`,
           "/feed",
           `join-${postId}`,
         );
