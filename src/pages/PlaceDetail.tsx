@@ -614,7 +614,7 @@ export default function PlaceDetail() {
 
               <div className="mb-3 flex gap-2">
                 <Input
-                  placeholder="ETH students love this spot…"
+                  placeholder="My go to spot for..."
                   value={commentBody}
                   onChange={(e) => setCommentBody(e.target.value)}
                   onKeyDown={(e) => {

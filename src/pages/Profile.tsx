@@ -24,12 +24,12 @@ const NOTIFICATION_PREFS: {
   {
     key: "notifyNewPost",
     label: "New activity from friends",
-    desc: "When someone posts they're free or doing something",
+    desc: "When someone posts they're free",
   },
   {
     key: "notifyGroupMessage",
     label: "Group chat messages",
-    desc: "Includes a preview of the message — like WhatsApp",
+    desc: "Includes a preview of the message",
   },
   {
     key: "notifyJoinedActivity",
