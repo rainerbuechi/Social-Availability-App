@@ -1,15 +1,7 @@
-/**
- * Push-notification helpers.
- *
- * subscribeToPush  – request permission → subscribe → store in Supabase
- * unsubscribeFromPush – unsubscribe device → remove from Supabase
- * sendNotification – fire-and-forget call to /api/send-notification
- */
 import { supabase } from "./supabaseClient";
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string;
 
-/** Convert the URL-safe Base64 VAPID key to Uint8Array for the browser API. */
 function urlBase64ToUint8Array(base64: string): Uint8Array {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
   const b64 = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -17,7 +9,6 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
 }
 
-/** True if this browser / OS supports Web Push. */
 export function isPushSupported(): boolean {
   return (
     "serviceWorker" in navigator &&
@@ -26,10 +17,6 @@ export function isPushSupported(): boolean {
   );
 }
 
-/**
- * Request permission, subscribe the device, and save the subscription in
- * Supabase. Returns true on success, false if the user denied permission.
- */
 export async function subscribeToPush(userId: string): Promise<boolean> {
   if (!isPushSupported()) return false;
   if (!VAPID_PUBLIC_KEY) {
@@ -38,7 +25,6 @@ export async function subscribeToPush(userId: string): Promise<boolean> {
   }
 
   try {
-    // Permission already granted by caller — just subscribe
     const registration = await navigator.serviceWorker.ready;
 
     let subscription = await registration.pushManager.getSubscription();
@@ -53,45 +39,26 @@ export async function subscribeToPush(userId: string): Promise<boolean> {
       { user_id: userId, subscription: subscription.toJSON() },
       { onConflict: "user_id" },
     );
-    if (error) {
-      alert("Supabase error: " + error.message + " | code: " + error.code);
-      console.error("save subscription:", error);
-    } else {
-      alert("Subscription saved successfully!");
-    }
+    if (error) console.error("save subscription:", error);
 
     return true;
   } catch (err) {
     console.error("subscribeToPush:", err);
-    // Temporarily surface the real error so we can debug
-    const msg = err instanceof Error ? err.message : JSON.stringify(err);
-    alert("Subscribe error: " + msg);
     return false;
   }
 }
 
-/**
- * Unsubscribe this device and remove the record from Supabase.
- */
 export async function unsubscribeFromPush(userId: string): Promise<void> {
   try {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager.getSubscription();
     if (subscription) await subscription.unsubscribe();
-
-    await supabase
-      .from("push_subscriptions")
-      .delete()
-      .eq("user_id", userId);
+    await supabase.from("push_subscriptions").delete().eq("user_id", userId);
   } catch (err) {
     console.error("unsubscribeFromPush:", err);
   }
 }
 
-/**
- * Fire-and-forget: ask the server to push a notification to a list of users.
- * Called from api.ts after actions; does NOT block the caller.
- */
 export function sendNotification(
   userIds: string[],
   title: string,
@@ -100,7 +67,6 @@ export function sendNotification(
   tag?: string,
 ): void {
   if (!userIds.length) return;
-
   fetch("/api/send-notification", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

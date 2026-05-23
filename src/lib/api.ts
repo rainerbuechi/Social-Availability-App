@@ -895,8 +895,16 @@ export async function createPost(
     try {
       const group = await getGroup(input.visibleToGroupId);
       const others = (group?.memberIds ?? []).filter((id) => id !== me.id);
-      sendNotification(others, `${me.name} is ${input.status}`,
-        input.message || "Just posted they're free", "/feed", "new-post");
+      const activityLabel = input.status.startsWith("custom:")
+        ? input.status.split(":")[1]
+        : input.status;
+      sendNotification(
+        others,
+        `Down for ${activityLabel}?`,
+        `${me.name}: ${input.message || `is ${activityLabel}`}`,
+        "/feed",
+        "new-post",
+      );
     } catch {}
   })();
 
@@ -1040,8 +1048,13 @@ export async function sendChatMessage(
     try {
       const group = await getGroup(groupId);
       const others = (group?.memberIds ?? []).filter((id) => id !== me.id);
-      sendNotification(others, `${me.name} in ${group?.name ?? "group"}`,
-        cleanBody, "/groups", `chat-${groupId}`);
+      sendNotification(
+        others,
+        group?.name ?? "Group chat",
+        `${me.name}: ${cleanBody}`,
+        "/groups",
+        `chat-${groupId}`,
+      );
     } catch {}
   })();
 
@@ -1183,8 +1196,15 @@ export async function joinPost(
     try {
       const post = await getPost(postId);
       if (post && post.authorId !== me.id) {
-        sendNotification([post.authorId], `${me.name} joined your activity`,
-          responseMessage ?? "Someone is joining!", "/feed", `join-${postId}`);
+        sendNotification(
+          [post.authorId],
+          `${me.name} is joining you`,
+          responseMessage
+            ? `"${responseMessage}"`
+            : "Someone's down for your activity",
+          "/feed",
+          `join-${postId}`,
+        );
       }
     } catch {}
   })();
@@ -1415,8 +1435,13 @@ export async function createPool(
     try {
       const group = await getGroup(input.visibleToGroupId);
       const others = (group?.memberIds ?? []).filter((id) => id !== me.id);
-      sendNotification(others, `${me.name} opened a waiting pool`,
-        input.title, "/feed", `newpool-${pool.id}`);
+      sendNotification(
+        others,
+        `New pool in ${group?.name ?? "your group"}`,
+        `${me.name}: "${input.title}" — join if you're down`,
+        "/feed",
+        `newpool-${pool.id}`,
+      );
     } catch {}
   })();
 
@@ -1471,8 +1496,13 @@ export async function joinPool(poolId: string): Promise<boolean> {
     try {
       const pool = await getPool(poolId);
       if (pool && pool.authorId !== me.id) {
-        sendNotification([pool.authorId], `${me.name} joined your pool`,
-          pool.title, "/feed", `joinpool-${poolId}`);
+        sendNotification(
+          [pool.authorId],
+          `${me.name} joined your pool`,
+          `"${pool.title}" now has ${pool.memberIds.length + 1} people`,
+          "/feed",
+          `joinpool-${poolId}`,
+        );
       }
     } catch {}
   })();
