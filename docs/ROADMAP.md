@@ -25,6 +25,8 @@
 - Leave Groups
 - Multiple groups for post & selection of ppl
   - feed anpassen (logo für gruppe etc.)
+- Discover fixen
+- Gamification
 
 
 
