@@ -18,6 +18,7 @@ import NotFound from "./pages/NotFound.tsx";
 import PoolDetail from "./pages/PoolDetail";
 import Discover from "./pages/Discover";
 import PlaceDetail from "./pages/PlaceDetail";
+import InviteRedirect from "./pages/InviteRedirect";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Login />} />
+          <Route path="/invite/:code" element={<InviteRedirect />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>

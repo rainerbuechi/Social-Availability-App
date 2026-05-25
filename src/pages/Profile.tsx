@@ -1,16 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Pencil, Check, UserPlus, ChevronRight } from "lucide-react";
+import {
+  LogOut,
+  Pencil,
+  Check,
+  UserPlus,
+  ChevronRight,
+  Copy,
+  Share2,
+  QrCode,
+} from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { getPrivacy, listGroups, updatePrivacy } from "@/lib/api";
+import { getPrivacy, updatePrivacy } from "@/lib/api";
 import {
   subscribeToPush,
   unsubscribeFromPush,
   isPushSupported,
 } from "@/lib/notifications";
-import { FriendGroup, PrivacySettings } from "@/lib/types";
+import { PrivacySettings } from "@/lib/types";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -19,6 +29,13 @@ type ProfileUser = {
   name: string;
   username: string;
   email: string;
+  inviteCode: string;
+};
+
+type InvitedPerson = {
+  id: string;
+  display_name: string;
+  username: string;
 };
 
 const NOTIFICATION_PREFS: {
@@ -57,7 +74,6 @@ export default function Profile() {
   const navigate = useNavigate();
 
   const [user, setUser] = useState<ProfileUser | null>(null);
-  const [groups, setGroups] = useState<FriendGroup[]>([]);
   const [privacy, setPrivacy] = useState<PrivacySettings | null>(null);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
@@ -65,6 +81,7 @@ export default function Profile() {
   const [isLoading, setIsLoading] = useState(true);
   const [notifLoading, setNotifLoading] = useState(false);
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
+  const [invitedPeople, setInvitedPeople] = useState<InvitedPerson[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -86,7 +103,7 @@ export default function Profile() {
 
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("id, username, display_name")
+          .select("id, username, display_name, invite_code")
           .eq("id", authUser.id)
           .maybeSingle();
 
@@ -110,6 +127,7 @@ export default function Profile() {
           email: authUser.email ?? "",
           name: profile?.display_name ?? fallbackName,
           username: profile?.username ?? fallbackUsername,
+          inviteCode: profile?.invite_code ?? "",
         };
 
         if (!isMounted) return;
@@ -118,15 +136,19 @@ export default function Profile() {
         setEditName(loadedUser.name);
         setEditUsername(loadedUser.username);
 
-        const [loadedGroups, loadedPrivacy, pendingRequestsResult] =
+        const [loadedPrivacy, pendingRequestsResult, referralsResult] =
           await Promise.all([
-            listGroups(),
             getPrivacy(),
             supabase
               .from("friendships")
               .select("id", { count: "exact", head: true })
               .eq("to_id", authUser.id)
               .eq("status", "pending"),
+            supabase
+              .from("referrals")
+              .select("invitee_id, created_at")
+              .eq("inviter_id", authUser.id)
+              .order("created_at", { ascending: false }),
           ]);
 
         if (!isMounted) return;
@@ -135,9 +157,32 @@ export default function Profile() {
           console.error(pendingRequestsResult.error);
         }
 
-        setGroups(loadedGroups);
         setPrivacy(loadedPrivacy);
         setPendingFriendRequests(pendingRequestsResult.count ?? 0);
+
+        if (referralsResult.error) {
+          console.error(referralsResult.error);
+        } else {
+          const inviteeIds = Array.from(
+            new Set((referralsResult.data ?? []).map((row) => row.invitee_id)),
+          );
+
+          if (inviteeIds.length > 0) {
+            const { data: inviteeProfiles, error: inviteeProfilesError } =
+              await supabase
+                .from("profiles")
+                .select("id, display_name, username")
+                .in("id", inviteeIds);
+
+            if (inviteeProfilesError) {
+              console.error(inviteeProfilesError);
+            } else if (isMounted) {
+              setInvitedPeople((inviteeProfiles ?? []) as InvitedPerson[]);
+            }
+          } else {
+            setInvitedPeople([]);
+          }
+        }
       } catch (error) {
         console.error(error);
         toast.error("Could not load profile");
@@ -155,9 +200,39 @@ export default function Profile() {
     };
   }, [navigate]);
 
+  const inviteLink = useMemo(() => {
+    if (!user?.inviteCode) return "";
+    return `${window.location.origin}/invite/${user.inviteCode}`;
+  }, [user?.inviteCode]);
+
   const update = async (patch: Partial<PrivacySettings>) => {
     const next = await updatePrivacy(patch);
     setPrivacy(next);
+  };
+
+  const handleCopyInvite = async () => {
+    if (!inviteLink) return;
+
+    await navigator.clipboard.writeText(inviteLink);
+    toast.success("Invite link copied");
+  };
+
+  const handleShareInvite = async () => {
+    if (!inviteLink) return;
+
+    const shareData = {
+      title: "Join me on Down",
+      text: "Add me on Down and see when I’m free.",
+      url: inviteLink,
+    };
+
+    if (navigator.share) {
+      await navigator.share(shareData);
+      return;
+    }
+
+    await navigator.clipboard.writeText(inviteLink);
+    toast.success("Invite link copied");
   };
 
   const handleNotificationsToggle = async (enabled: boolean) => {
@@ -377,43 +452,79 @@ export default function Profile() {
 
         <section className="mt-6 px-5">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Default group
+            Invite friends
           </h2>
 
-          <div className="space-y-2">
-            {groups.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-border bg-card p-4 text-sm text-muted-foreground shadow-sm">
-                No groups yet.
+          <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <QrCode className="h-4 w-4 text-[#DA2C43]" />
+              <p className="text-sm font-semibold">Your personal invite</p>
+            </div>
+
+            <p className="mt-1 text-xs text-muted-foreground">
+              Share this QR code or link. New users who sign up through it are
+              tracked here.
+            </p>
+
+            <div className="mt-4 flex justify-center">
+              <div className="rounded-3xl bg-white p-4 shadow-sm">
+                {inviteLink ? (
+                  <QRCodeSVG value={inviteLink} size={160} />
+                ) : (
+                  <div className="flex h-40 w-40 items-center justify-center text-xs text-muted-foreground">
+                    No invite code
+                  </div>
+                )}
               </div>
-            ) : (
-              groups.map((g) => {
-                const active = g.id === privacy.defaultGroupId;
+            </div>
 
-                return (
-                  <button
-                    key={g.id}
-                    onClick={() => update({ defaultGroupId: g.id })}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-3xl border-2 p-3 text-left shadow-sm transition-colors",
-                      active
-                        ? "border-[#DA2C43] bg-[#DA2C43]/10"
-                        : "border-border bg-card hover:bg-primary-soft/70 hover:text-primary",
-                    )}
-                  >
-                    <span className="flex items-center gap-2 text-sm font-semibold">
-                      <span className="text-lg">{g.emoji}</span>
-                      {g.name}
-                    </span>
+            <div className="mt-4 rounded-2xl border border-border bg-background px-3 py-2">
+              <p className="truncate text-xs text-muted-foreground">
+                {inviteLink}
+              </p>
+            </div>
 
-                    {active && (
-                      <span className="rounded-full bg-[#DA2C43] px-2 py-0.5 text-xs font-semibold text-white">
-                        Default
-                      </span>
-                    )}
-                  </button>
-                );
-              })
-            )}
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                onClick={handleCopyInvite}
+                className="flex h-10 items-center justify-center gap-1.5 rounded-full border border-border bg-background text-sm font-semibold text-muted-foreground transition-colors hover:bg-primary-soft/70 hover:text-primary"
+              >
+                <Copy className="h-4 w-4" />
+                Copy
+              </button>
+
+              <button
+                onClick={handleShareInvite}
+                className="flex h-10 items-center justify-center gap-1.5 rounded-full bg-[#DA2C43] text-sm font-semibold text-white transition-colors hover:bg-[#c9273c]"
+              >
+                <Share2 className="h-4 w-4" />
+                Share
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-muted/50 p-3">
+              <p className="text-sm font-semibold">
+                {invitedPeople.length} invited{" "}
+                {invitedPeople.length === 1 ? "person" : "people"}
+              </p>
+
+              {invitedPeople.length > 0 ? (
+                <div className="mt-2 space-y-1">
+                  {invitedPeople.slice(0, 3).map((person) => (
+                    <p
+                      key={person.id}
+                      className="truncate text-xs text-muted-foreground"
+                    >
+                      {person.display_name} · @{person.username}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  No one has joined through your invite yet.
+                </p>
+              )}
+            </div>
           </div>
         </section>
 

@@ -305,6 +305,7 @@ export default function Friends() {
     }
 
     toast.success("Friend request sent");
+    window.dispatchEvent(new Event("friend-requests-changed"));
     setQuery("");
     setSearchResults([]);
     refresh();
@@ -325,6 +326,7 @@ export default function Friends() {
     }
 
     toast.success("Friend added");
+    window.dispatchEvent(new Event("friend-requests-changed"));
     refresh();
   };
 
@@ -342,6 +344,7 @@ export default function Friends() {
     }
 
     toast.success("Friend removed");
+    window.dispatchEvent(new Event("friend-requests-changed"));
     setRemoveTarget(null);
     refresh();
   };

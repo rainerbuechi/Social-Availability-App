@@ -19,6 +19,23 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
 
+  const acceptStoredInvite = async () => {
+    const inviteCode = localStorage.getItem("pending_invite_code");
+
+    if (!inviteCode) return;
+
+    const { error } = await supabase.rpc("accept_invite", {
+      invite_code_input: inviteCode,
+    });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    localStorage.removeItem("pending_invite_code");
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -30,6 +47,7 @@ export default function Login() {
       if (!isMounted) return;
 
       if (session) {
+        await acceptStoredInvite();
         navigate("/feed", { replace: true });
         return;
       }
@@ -72,13 +90,15 @@ export default function Login() {
       error: sessionError,
     } = await supabase.auth.getSession();
 
-    setIsLoading(false);
-
     if (sessionError || !session) {
+      setIsLoading(false);
       toast.error("Login worked, but the session was not saved. Please try again.");
       return;
     }
 
+    await acceptStoredInvite();
+
+    setIsLoading(false);
     toast.success("Welcome back!");
     navigate("/feed", { replace: true });
   };
@@ -109,20 +129,23 @@ export default function Login() {
       },
     });
 
-    setIsLoading(false);
-
     if (error) {
+      setIsLoading(false);
       toast.error(error.message);
       return;
     }
 
     if (!data.session) {
+      setIsLoading(false);
       toast.success("Account created! Please check your email to confirm your account.");
       setStep("login");
       setPassword("");
       return;
     }
 
+    await acceptStoredInvite();
+
+    setIsLoading(false);
     toast.success("Account created!");
     navigate("/feed", { replace: true });
   };
