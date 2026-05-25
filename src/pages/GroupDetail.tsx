@@ -45,6 +45,7 @@ import { useNicknames } from "@/hooks/useNicknames";
 
 function formatPoolDate(dateStr: string) {
   const d = new Date(dateStr + "T00:00:00");
+
   return d.toLocaleDateString(undefined, {
     weekday: "long",
     month: "short",
@@ -52,7 +53,72 @@ function formatPoolDate(dateStr: string) {
   });
 }
 
+function formatPickerDate(dateStr: string) {
+  if (!dateStr) return "";
+
+  const [year, month, day] = dateStr.split("-").map(Number);
+
+  if (!year || !month || !day) return "";
+
+  const d = new Date(year, month - 1, day);
+
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 const todayStr = () => new Date().toISOString().split("T")[0];
+
+type CompactPickerProps = {
+  label: string;
+  type: "date" | "time";
+  value: string;
+  placeholder: string;
+  min?: string;
+  onChange: (value: string) => void;
+};
+
+function CompactPicker({
+  label,
+  type,
+  value,
+  placeholder,
+  min,
+  onChange,
+}: CompactPickerProps) {
+  const displayValue =
+    type === "date" ? formatPickerDate(value) || placeholder : value || placeholder;
+
+  return (
+    <div className="min-w-0">
+      <label className="mb-1 block truncate text-xs text-muted-foreground">
+        {label}
+      </label>
+
+      <div className="relative h-11 w-full min-w-0 overflow-hidden rounded-2xl border border-input bg-card">
+        <div className="pointer-events-none flex h-full w-full min-w-0 items-center px-3 text-sm">
+          <span
+            className={`min-w-0 truncate ${
+              value ? "text-foreground" : "text-muted-foreground"
+            }`}
+          >
+            {displayValue}
+          </span>
+        </div>
+
+        <input
+          type={type}
+          min={min}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          aria-label={label}
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function GroupDetail() {
   const { groupId } = useParams<{ groupId: string }>();
@@ -231,7 +297,9 @@ export default function GroupDetail() {
                   <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-soft text-[10px] font-semibold text-primary">
                     {initials}
                   </div>
-                  {displayName(m.id, m.name)}
+                  <span className="max-w-[110px] truncate">
+                    {displayName(m.id, m.name)}
+                  </span>
                 </div>
               );
             })}
@@ -239,15 +307,15 @@ export default function GroupDetail() {
         </div>
 
         <div>
-          <div className="mb-2 flex items-center justify-between">
-            <p className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <Waves className="h-3.5 w-3.5" />
-              Waiting Pools
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="flex min-w-0 items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <Waves className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">Waiting Pools</span>
             </p>
 
             <button
               onClick={() => setShowCreate((v) => !v)}
-              className="flex items-center gap-1 rounded-full bg-[#DA2C43] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#c9273c]"
+              className="flex shrink-0 items-center gap-1 rounded-full bg-[#DA2C43] px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#c9273c]"
             >
               <Plus className="h-3.5 w-3.5" />
               {showCreate ? "Cancel" : "New Pool"}
@@ -255,78 +323,67 @@ export default function GroupDetail() {
           </div>
 
           {showCreate && (
-            <div className="mb-3 space-y-3 rounded-3xl border border-border bg-card p-4 shadow-sm">
+            <div className="mb-3 w-full max-w-full space-y-3 overflow-hidden rounded-3xl border border-border bg-card p-4 shadow-sm">
               <Input
                 placeholder='e.g. "Down for anything Saturday 🤙"'
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
+                className="h-11 w-full min-w-0 rounded-2xl bg-card text-base focus-visible:ring-[#DA2C43]"
               />
 
               <Input
                 placeholder="Vibe / description (optional)"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
+                className="h-11 w-full min-w-0 rounded-2xl bg-card text-base focus-visible:ring-[#DA2C43]"
               />
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">
-                    Date *
-                  </label>
+              <div className="grid w-full min-w-0 grid-cols-2 gap-3">
+                <CompactPicker
+                  label="Date *"
+                  type="date"
+                  min={todayStr()}
+                  value={date}
+                  placeholder="Date"
+                  onChange={setDate}
+                />
 
-                  <Input
-                    type="date"
-                    min={todayStr()}
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">
+                <div className="min-w-0">
+                  <label className="mb-1 block truncate text-xs text-muted-foreground">
                     Min people
                   </label>
 
                   <Input
                     type="number"
+                    inputMode="numeric"
                     min={2}
                     max={20}
                     value={minPeople}
-                    onChange={(e) => setMinPeople(Number(e.target.value))}
-                    className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      setMinPeople(Number.isNaN(value) ? 2 : value);
+                    }}
+                    className="h-11 w-full min-w-0 rounded-2xl bg-card text-base focus-visible:ring-[#DA2C43]"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">
-                    From (optional)
-                  </label>
+              <div className="grid w-full min-w-0 grid-cols-2 gap-3">
+                <CompactPicker
+                  label="From (optional)"
+                  type="time"
+                  value={startTime}
+                  placeholder="From"
+                  onChange={setStartTime}
+                />
 
-                  <Input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">
-                    To (optional)
-                  </label>
-
-                  <Input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="h-11 rounded-2xl bg-card focus-visible:ring-[#DA2C43]"
-                  />
-                </div>
+                <CompactPicker
+                  label="To (optional)"
+                  type="time"
+                  value={endTime}
+                  placeholder="To"
+                  onChange={setEndTime}
+                />
               </div>
 
               <Button
@@ -566,7 +623,10 @@ export default function GroupDetail() {
                 {recentMessages.map((msg) => (
                   <p key={msg.id} className="truncate text-sm">
                     <span className="font-medium">
-                      {displayName(msg.authorId, messageAuthors[msg.authorId] ?? "?")}{" "}
+                      {displayName(
+                        msg.authorId,
+                        messageAuthors[msg.authorId] ?? "?",
+                      )}{" "}
                     </span>
                     {msg.body}
                   </p>

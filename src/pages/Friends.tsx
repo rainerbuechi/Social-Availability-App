@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { UserPlus, UserMinus, Clock, Check, Search, Pencil, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowLeft,
+  UserPlus,
+  UserMinus,
+  Clock,
+  Check,
+  Search,
+  Pencil,
+  X,
+  Sparkles,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
@@ -13,7 +24,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
 
 type Profile = {
   id: string;
@@ -37,7 +47,24 @@ type FriendListItem = {
   direction: "incoming" | "outgoing";
 };
 
+type FriendRecommendation = {
+  profile: Profile;
+  mutualCount: number;
+  mutualNames: string[];
+};
+
+type RecommendationRpcRow = {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  mutual_count: number;
+  mutual_names: string[] | null;
+};
+
 export default function Friends() {
+  const navigate = useNavigate();
+
   const [meId, setMeId] = useState("");
   const [friendships, setFriendships] = useState<FriendshipRow[]>([]);
   const [profilesById, setProfilesById] = useState<Record<string, Profile>>({});
@@ -47,8 +74,66 @@ export default function Friends() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [nicknames, setNicknames] = useState<Record<string, string>>({});
-  const [editingNicknameFor, setEditingNicknameFor] = useState<string | null>(null);
+  const [editingNicknameFor, setEditingNicknameFor] = useState<string | null>(
+    null,
+  );
   const [nicknameInput, setNicknameInput] = useState("");
+  const [recommendations, setRecommendations] = useState<
+    FriendRecommendation[]
+  >([]);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] =
+    useState(false);
+
+  const loadRecommendations = async (
+    authUserId: string,
+    rows: FriendshipRow[],
+  ) => {
+    setIsLoadingRecommendations(true);
+
+    try {
+      const acceptedFriendIds = rows
+        .filter((friendship) => friendship.status === "accepted")
+        .map((friendship) =>
+          friendship.from_id === authUserId
+            ? friendship.to_id
+            : friendship.from_id,
+        );
+
+      if (acceptedFriendIds.length < 1) {
+        setRecommendations([]);
+        return;
+      }
+
+      const { data, error } = await supabase.rpc("get_friend_recommendations", {
+        min_mutual: 3,
+        result_limit: 5,
+      });
+
+      if (error) {
+        console.error(error);
+        toast.error("Could not load friend recommendations");
+        setRecommendations([]);
+        return;
+      }
+
+      const nextRecommendations: FriendRecommendation[] = (
+        (data ?? []) as RecommendationRpcRow[]
+      ).map((row) => ({
+        profile: {
+          id: row.id,
+          username: row.username,
+          display_name: row.display_name,
+          avatar_url: row.avatar_url,
+        },
+        mutualCount: Number(row.mutual_count),
+        mutualNames: row.mutual_names ?? [],
+      }));
+
+      setRecommendations(nextRecommendations);
+    } finally {
+      setIsLoadingRecommendations(false);
+    }
+  };
 
   const refresh = async () => {
     setIsLoading(true);
@@ -63,6 +148,7 @@ export default function Friends() {
       setMeId("");
       setFriendships([]);
       setProfilesById({});
+      setRecommendations([]);
       setIsLoading(false);
       return;
     }
@@ -89,35 +175,37 @@ export default function Friends() {
 
     const otherIds = Array.from(
       new Set(
-        rows.map((f) => (f.from_id === authUser.id ? f.to_id : f.from_id)),
+        rows.map((friendship) =>
+          friendship.from_id === authUser.id
+            ? friendship.to_id
+            : friendship.from_id,
+        ),
       ),
     );
 
-    if (otherIds.length === 0) {
-      setProfilesById({});
-      setIsLoading(false);
-      return;
-    }
-
-    const { data: profiles, error: profilesError } = await supabase
-      .from("profiles")
-      .select("id, username, display_name, avatar_url")
-      .in("id", otherIds);
-
-    if (profilesError) {
-      toast.error(profilesError.message);
-      setIsLoading(false);
-      return;
-    }
-
     const nextProfilesById: Record<string, Profile> = {};
 
-    for (const profile of (profiles ?? []) as Profile[]) {
-      nextProfilesById[profile.id] = profile;
+    if (otherIds.length > 0) {
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url")
+        .in("id", otherIds);
+
+      if (profilesError) {
+        toast.error(profilesError.message);
+        setIsLoading(false);
+        return;
+      }
+
+      for (const profile of (profiles ?? []) as Profile[]) {
+        nextProfilesById[profile.id] = profile;
+      }
     }
 
     setProfilesById(nextProfilesById);
     setIsLoading(false);
+
+    await loadRecommendations(authUser.id, rows);
   };
 
   useEffect(() => {
@@ -176,10 +264,12 @@ export default function Friends() {
   const accepted = friendItems.filter(
     (item) => item.friendship.status === "accepted",
   );
+
   const incomingPending = friendItems.filter(
     (item) =>
       item.friendship.status === "pending" && item.direction === "incoming",
   );
+
   const outgoingPending = friendItems.filter(
     (item) =>
       item.friendship.status === "pending" && item.direction === "outgoing",
@@ -187,9 +277,9 @@ export default function Friends() {
 
   const friendshipForProfile = (profileId: string) => {
     return friendships.find(
-      (f) =>
-        (f.from_id === meId && f.to_id === profileId) ||
-        (f.from_id === profileId && f.to_id === meId),
+      (friendship) =>
+        (friendship.from_id === meId && friendship.to_id === profileId) ||
+        (friendship.from_id === profileId && friendship.to_id === meId),
     );
   };
 
@@ -259,11 +349,11 @@ export default function Friends() {
   const initials = (name: string) =>
     name
       .split(" ")
-      .map((p) => p[0])
+      .map((part) => part[0])
       .slice(0, 2)
       .join("")
       .toUpperCase();
-      
+
   const nicknameFor = (profileId: string) => nicknames[profileId] ?? null;
 
   const displayName = (profile: Profile) =>
@@ -271,11 +361,13 @@ export default function Friends() {
 
   const saveNickname = (profileId: string) => {
     const next = { ...nicknames };
+
     if (nicknameInput.trim() === "") {
       delete next[profileId];
     } else {
       next[profileId] = nicknameInput.trim();
     }
+
     setNicknames(next);
     localStorage.setItem(`nicknames_${meId}`, JSON.stringify(next));
     setEditingNicknameFor(null);
@@ -287,7 +379,7 @@ export default function Friends() {
     return (
       <li
         key={friendship.id}
-        className="flex items-center justify-between rounded-xl border border-border bg-card p-3"
+        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3"
       >
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-medium text-secondary-foreground">
@@ -298,6 +390,7 @@ export default function Friends() {
             <p className="truncate text-sm font-semibold">
               {displayName(profile)}
             </p>
+
             {nicknameFor(profile.id) ? (
               <p className="truncate text-xs text-muted-foreground">
                 {profile.display_name} · @{profile.username}
@@ -318,20 +411,26 @@ export default function Friends() {
                   <input
                     value={nicknameInput}
                     onChange={(e) => setNicknameInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && saveNickname(profile.id)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && saveNickname(profile.id)
+                    }
                     placeholder="Nickname…"
                     className="h-7 w-24 rounded-lg border border-border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                     autoFocus
                   />
+
                   <button
                     onClick={() => saveNickname(profile.id)}
                     className="text-primary hover:opacity-70"
+                    aria-label="Save nickname"
                   >
                     <Check className="h-4 w-4" />
                   </button>
+
                   <button
                     onClick={() => setEditingNicknameFor(null)}
                     className="text-muted-foreground hover:opacity-70"
+                    aria-label="Cancel nickname edit"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -348,6 +447,7 @@ export default function Friends() {
                   {nicknameFor(profile.id) ? "Edit" : "Nickname"}
                 </button>
               )}
+
               <button
                 onClick={() => setRemoveTarget(item)}
                 className="inline-flex h-8 items-center gap-1 rounded-full border border-border px-3 text-xs font-medium text-muted-foreground hover:bg-muted"
@@ -385,7 +485,7 @@ export default function Friends() {
     return (
       <li
         key={profile.id}
-        className="flex items-center justify-between rounded-xl border border-border bg-card p-3"
+        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3"
       >
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-medium text-secondary-foreground">
@@ -396,6 +496,7 @@ export default function Friends() {
             <p className="truncate text-sm font-semibold">
               {profile.display_name}
             </p>
+
             <p className="truncate text-xs text-muted-foreground">
               @{profile.username}
             </p>
@@ -419,14 +520,68 @@ export default function Friends() {
     );
   };
 
+  const renderRecommendation = (recommendation: FriendRecommendation) => {
+    const { profile, mutualCount, mutualNames } = recommendation;
+
+    return (
+      <li
+        key={profile.id}
+        className="flex items-center justify-between gap-3 rounded-xl border border-[#DA2C43]/20 bg-card p-3 shadow-sm"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DA2C43]/10 text-sm font-semibold text-[#DA2C43]">
+            {initials(profile.display_name)}
+          </div>
+
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">
+              {profile.display_name}
+            </p>
+
+            <p className="truncate text-xs text-muted-foreground">
+              @{profile.username}
+            </p>
+
+            <p className="truncate text-[11px] text-muted-foreground">
+              {mutualCount} mutual friend{mutualCount === 1 ? "" : "s"}
+              {mutualNames.length > 0 ? ` · ${mutualNames.join(", ")}` : ""}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => handleAdd(profile.id)}
+          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-[#DA2C43] px-3 text-xs font-semibold text-white hover:bg-[#c9273c]"
+        >
+          <UserPlus className="h-3.5 w-3.5" />
+          Add
+        </button>
+      </li>
+    );
+  };
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-muted/20">
-      <header className="safe-top shrink-0 border-b border-border bg-background/90 px-5 py-4 shadow-sm backdrop-blur">
-        <h1 className="text-2xl font-bold tracking-tight">Friends</h1>
+      <header className="safe-top shrink-0 border-b border-border bg-background/90 px-4 py-3 shadow-sm backdrop-blur">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate("/profile")}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary-soft/70 hover:text-primary"
+            aria-label="Back to profile"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
 
-        <p className="mt-1 text-xs text-muted-foreground">
-          Find friends by username and manage your requests.
-        </p>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-2xl font-bold tracking-tight">
+              Friends
+            </h1>
+
+            <p className="mt-1 text-xs text-muted-foreground">
+              Find friends by username and manage your requests.
+            </p>
+          </div>
+        </div>
 
         <div className="relative mt-3">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -435,7 +590,7 @@ export default function Friends() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search username"
-            className="pl-9"
+            className="h-11 rounded-2xl bg-card pl-9 focus-visible:ring-[#DA2C43]"
           />
         </div>
       </header>
@@ -476,6 +631,25 @@ export default function Friends() {
                       {incomingPending.map(renderFriendItem)}
                     </ul>
                   </section>
+                )}
+
+                {recommendations.length > 0 && (
+                  <section>
+                    <h2 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <Sparkles className="h-3.5 w-3.5 text-[#DA2C43]" />
+                      Friend recommendations
+                    </h2>
+
+                    <ul className="space-y-2">
+                      {recommendations.map(renderRecommendation)}
+                    </ul>
+                  </section>
+                )}
+
+                {isLoadingRecommendations && accepted.length >= 3 && (
+                  <p className="text-sm text-muted-foreground">
+                    Finding friend recommendations...
+                  </p>
                 )}
 
                 {accepted.length > 0 && (
