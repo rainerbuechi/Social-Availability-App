@@ -34,6 +34,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import UserAvatar from "@/components/UserAvatar";
 import { cn } from "@/lib/utils";
 
 export default function Groups() {
@@ -280,20 +281,15 @@ export default function Groups() {
                 <div className="mt-3 flex -space-x-2">
                   {g.memberIds.slice(0, 6).map((id) => {
                     const u = userById(id);
-                    const initials = u?.name
-                      .split(" ")
-                      .map((p) => p[0])
-                      .slice(0, 2)
-                      .join("");
 
                     return (
-                      <div
+                      <UserAvatar
                         key={id}
-                        className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-card bg-secondary text-xs font-semibold text-secondary-foreground"
-                        title={u?.name}
-                      >
-                        {initials}
-                      </div>
+                        name={u?.name ?? "User"}
+                        avatarUrl={u?.avatarUrl}
+                        size="sm"
+                        className="border-2 border-card"
+                      />
                     );
                   })}
 
@@ -377,6 +373,12 @@ export default function Groups() {
                       <span className="text-[10px] text-white">✓</span>
                     </div>
 
+                    <UserAvatar
+                      name={userById(meId)?.name ?? "You"}
+                      avatarUrl={userById(meId)?.avatarUrl}
+                      size="xs"
+                    />
+
                     <span className="text-foreground">You</span>
 
                     <span className="ml-auto text-xs text-muted-foreground">
@@ -418,7 +420,13 @@ export default function Groups() {
                           )}
                         </div>
 
-                        {u.name}
+                        <UserAvatar
+                          name={u.name}
+                          avatarUrl={u.avatarUrl}
+                          size="xs"
+                        />
+
+                        <span className="truncate">{u.name}</span>
                       </button>
                     );
                   })

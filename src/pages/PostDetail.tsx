@@ -19,6 +19,7 @@ import {
 } from "@/lib/types";
 import { formatTimeRange, relativeTime } from "@/lib/status";
 import StatusBadge from "@/components/StatusBadge";
+import UserAvatar from "@/components/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
@@ -147,14 +148,6 @@ export default function PostDetail() {
     }
   };
 
-  const initials = (name?: string) =>
-    name
-      ?.split(" ")
-      .map((p) => p[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase() ?? "?";
-
   const locationLabel = (() => {
     if (!post) return "";
 
@@ -266,9 +259,12 @@ export default function PostDetail() {
 
         <div className="space-y-5" style={contentTransform}>
           <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-soft text-sm font-semibold text-primary">
-              {initials(author?.name)}
-            </div>
+            <UserAvatar
+              name={author?.name ?? "User"}
+              avatarUrl={author?.avatarUrl}
+              size="md"
+              className="h-12 w-12 text-sm"
+            />
 
             <div className="min-w-0 flex-1">
               <p className="truncate text-base font-semibold text-foreground">
@@ -319,9 +315,11 @@ export default function PostDetail() {
             </p>
 
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
-                {initials(author?.name)}
-              </div>
+              <UserAvatar
+                name={author?.name ?? "User"}
+                avatarUrl={author?.avatarUrl}
+                size="sm"
+              />
 
               <span className="text-sm font-medium text-foreground">
                 {author ? displayName(author.id, author.name) : "…"}
@@ -349,13 +347,18 @@ export default function PostDetail() {
               <div className="space-y-3">
                 {participants.map((pp) => (
                   <div key={pp.id} className="flex items-start gap-2">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-                      {initials(pp.user?.name)}
-                    </div>
+                    <UserAvatar
+                      name={pp.user?.name ?? "User"}
+                      avatarUrl={pp.user?.avatarUrl}
+                      size="sm"
+                      className="h-7 w-7 text-xs"
+                    />
 
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-foreground">
-                        {pp.user ? displayName(pp.user.id, pp.user.name) : "Unknown"}
+                        {pp.user
+                          ? displayName(pp.user.id, pp.user.name)
+                          : "Unknown"}
 
                         {pp.userId === currentUser?.id && (
                           <span className="ml-1 text-xs text-primary">

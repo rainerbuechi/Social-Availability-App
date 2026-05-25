@@ -28,6 +28,7 @@ import {
 
 import { toast } from "sonner";
 import { useNicknames } from "@/hooks/useNicknames";
+import UserAvatar from "@/components/UserAvatar";
 
 interface Props {
   post: AvailabilityPost;
@@ -103,14 +104,24 @@ export default function PostCard({ post, onDeleted }: Props) {
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
-            <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-lg"
-              style={{
-                backgroundColor: `hsl(var(--${activity.colorVar}) / 0.10)`,
-              }}
-            >
-              {activity.emoji}
-            </span>
+            <div className="relative shrink-0">
+              <UserAvatar
+                name={author?.name ?? "User"}
+                avatarUrl={author?.avatarUrl}
+                size="md"
+              />
+
+              <span
+                className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full text-[11px] shadow-sm ring-1 ring-card"
+                style={{
+                  backgroundColor: `hsl(var(--${activity.colorVar}) / 0.40)`,
+                  boxShadow:
+                    "0 1px 2px rgba(15, 23, 42, 0.16), inset 0 0 0 1px rgba(255,255,255,0.55)",
+                }}
+              >
+                {activity.emoji}
+              </span>
+            </div>
 
             <div className="min-w-0">
               <p className="truncate text-[15px] font-bold leading-tight text-foreground">

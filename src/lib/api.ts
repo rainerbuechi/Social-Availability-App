@@ -93,6 +93,7 @@ function mapProfileToUser(profile: {
   id: string;
   username: string;
   display_name: string;
+  avatar_url?: string | null;
 }): User {
   return {
     id: profile.id,
@@ -100,6 +101,7 @@ function mapProfileToUser(profile: {
     username: profile.username,
     email: "",
     password: "",
+    avatarUrl: profile.avatar_url ?? null,
   };
 }
 
@@ -132,7 +134,7 @@ async function ensureProfile(): Promise<User | null> {
 
   const { data: existing } = await supabase
     .from("profiles")
-    .select("id, username, display_name")
+    .select("id, username, display_name, avatar_url")
     .eq("id", authUser.id)
     .maybeSingle();
 
@@ -148,7 +150,7 @@ async function ensureProfile(): Promise<User | null> {
       display_name: fallbackDisplayName,
       avatar_url: authUser.user_metadata?.avatar_url ?? null,
     })
-    .select("id, username, display_name")
+    .select("id, username, display_name, avatar_url")
     .single();
 
   if (error || !data) {
@@ -232,7 +234,7 @@ export async function updateCurrentUser(
       username: patch.username ?? me.username,
     })
     .eq("id", me.id)
-    .select("id, username, display_name")
+    .select("id, username, display_name, avatar_url")
     .single();
 
   if (error || !data) {
@@ -248,7 +250,7 @@ export async function updateCurrentUser(
 export async function listUsers(): Promise<User[]> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, username, display_name")
+    .select("id, username, display_name, avatar_url")
     .order("display_name", { ascending: true });
 
   if (error) {
@@ -262,7 +264,7 @@ export async function listUsers(): Promise<User[]> {
 export async function getUser(id: string): Promise<User | undefined> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, username, display_name")
+    .select("id, username, display_name, avatar_url")
     .eq("id", id)
     .maybeSingle();
 
@@ -333,7 +335,7 @@ export async function listAcceptedFriends(): Promise<User[]> {
 
   const { data: profiles, error: profilesError } = await supabase
     .from("profiles")
-    .select("id, username, display_name")
+    .select("id, username, display_name, avatar_url")
     .in("id", friendIds);
 
   if (profilesError) {
@@ -438,7 +440,7 @@ export async function searchUsers(query: string): Promise<User[]> {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, username, display_name")
+    .select("id, username, display_name, avatar_url")
     .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
     .neq("id", meId ?? "")
     .limit(20);
@@ -549,7 +551,7 @@ export async function listGroupMembers(groupId: string): Promise<User[]> {
 
   const { data: profiles, error: profilesError } = await supabase
     .from("profiles")
-    .select("id, username, display_name")
+    .select("id, username, display_name, avatar_url")
     .in("id", ids);
 
   if (profilesError) {
@@ -1578,7 +1580,7 @@ export async function listPoolMembers(poolId: string): Promise<User[]> {
 
   const { data: profiles, error: profilesError } = await supabase
     .from("profiles")
-    .select("id, username, display_name")
+    .select("id, username, display_name, avatar_url")
     .in("id", ids);
 
   if (profilesError) {

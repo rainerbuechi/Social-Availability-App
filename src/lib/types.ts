@@ -23,7 +23,7 @@ export interface User {
   email: string;
   /** Prototype-only field. Replace with Supabase Auth. */
   password?: string;
-  avatarUrl?: string;
+  avatarUrl?: string | null;
 }
 
 export interface FriendGroup {

@@ -37,6 +37,7 @@ import {
   WaitingPool,
 } from "@/lib/types";
 import PostCard from "@/components/PostCard";
+import UserAvatar from "@/components/UserAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -281,28 +282,22 @@ export default function GroupDetail() {
           </p>
 
           <div className="flex flex-wrap gap-2">
-            {members.map((m) => {
-              const initials = m.name
-                .split(" ")
-                .map((p) => p[0])
-                .slice(0, 2)
-                .join("")
-                .toUpperCase();
+            {members.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm shadow-sm"
+              >
+                <UserAvatar
+                  name={m.name}
+                  avatarUrl={m.avatarUrl}
+                  size="xs"
+                />
 
-              return (
-                <div
-                  key={m.id}
-                  className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-sm shadow-sm"
-                >
-                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-soft text-[10px] font-semibold text-primary">
-                    {initials}
-                  </div>
-                  <span className="max-w-[110px] truncate">
-                    {displayName(m.id, m.name)}
-                  </span>
-                </div>
-              );
-            })}
+                <span className="max-w-[110px] truncate">
+                  {displayName(m.id, m.name)}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 

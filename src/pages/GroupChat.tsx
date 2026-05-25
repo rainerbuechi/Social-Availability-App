@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { ChatMessage, FriendGroup, User } from "@/lib/types";
 import { Input } from "@/components/ui/input";
+import UserAvatar from "@/components/UserAvatar";
 import { toast } from "sonner";
 import { useNicknames } from "@/hooks/useNicknames";
 
@@ -85,7 +86,9 @@ export default function GroupChat() {
       setMessages(msgs);
     } catch (error) {
       console.error(error);
-      toast.error(error instanceof Error ? error.message : "Could not send message");
+      toast.error(
+        error instanceof Error ? error.message : "Could not send message",
+      );
     } finally {
       setIsSending(false);
     }
@@ -125,31 +128,52 @@ export default function GroupChat() {
         {messages.map((m) => {
           const author = userById(m.authorId);
           const isMe = currentUser?.id === m.authorId;
+          const authorName = author ? displayName(author.id, author.name) : "Unknown";
 
           return (
             <div
               key={m.id}
-              className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
+              className={`flex ${isMe ? "justify-end" : "justify-start"}`}
             >
-              {!isMe && (
-                <span className="mb-0.5 text-[11px] font-medium text-muted-foreground">
-                  {author ? displayName(author.id, author.name) : "Unknown"}
-                </span>
-              )}
-
               <div
-                className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
-                  isMe
-                    ? "rounded-br-md bg-primary text-primary-foreground"
-                    : "rounded-bl-md bg-secondary text-secondary-foreground"
+                className={`flex max-w-[82%] items-end gap-2 ${
+                  isMe ? "flex-row-reverse" : "flex-row"
                 }`}
               >
-                {m.body}
-              </div>
+                {!isMe && author && (
+                  <UserAvatar
+                    name={authorName}
+                    avatarUrl={author.avatarUrl}
+                    size="sm"
+                  />
+                )}
 
-              <span className="mt-0.5 text-[10px] text-muted-foreground">
-                {formatTime(m.createdAt)}
-              </span>
+                <div
+                  className={`flex flex-col ${
+                    isMe ? "items-end" : "items-start"
+                  }`}
+                >
+                  {!isMe && (
+                    <span className="mb-0.5 text-[11px] font-medium text-muted-foreground">
+                      {authorName}
+                    </span>
+                  )}
+
+                  <div
+                    className={`rounded-2xl px-3.5 py-2 text-sm ${
+                      isMe
+                        ? "rounded-br-md bg-primary text-primary-foreground"
+                        : "rounded-bl-md bg-secondary text-secondary-foreground"
+                    }`}
+                  >
+                    {m.body}
+                  </div>
+
+                  <span className="mt-0.5 text-[10px] text-muted-foreground">
+                    {formatTime(m.createdAt)}
+                  </span>
+                </div>
+              </div>
             </div>
           );
         })}

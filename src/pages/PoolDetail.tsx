@@ -21,6 +21,7 @@ import {
 import { WaitingPool, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import UserAvatar from "@/components/UserAvatar";
 import { toast } from "sonner";
 import { useNicknames } from "@/hooks/useNicknames";
 
@@ -145,9 +146,7 @@ export default function PoolDetail() {
             <ArrowLeft className="h-5 w-5" />
           </button>
 
-          <h1 className="flex-1 truncate text-lg font-bold">
-            {pool.title}
-          </h1>
+          <h1 className="flex-1 truncate text-lg font-bold">{pool.title}</h1>
 
           {isOwn && !editing && (
             <button
@@ -341,41 +340,34 @@ export default function PoolDetail() {
             </p>
           ) : (
             <div className="space-y-2">
-              {members.map((member) => {
-                const initials = member.name
-                  .split(" ")
-                  .map((part) => part[0])
-                  .slice(0, 2)
-                  .join("")
-                  .toUpperCase();
+              {members.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5"
+                >
+                  <UserAvatar
+                    name={member.name}
+                    avatarUrl={member.avatarUrl}
+                    size="sm"
+                  />
 
-                return (
-                  <div
-                    key={member.id}
-                    className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5"
-                  >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
-                      {initials}
-                    </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {displayName(member.id, member.name)}
+                    </p>
 
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {displayName(member.id, member.name)}
-                      </p>
-
-                      <p className="truncate text-xs text-muted-foreground">
-                        @{member.username}
-                      </p>
-                    </div>
-
-                    {member.id === pool.authorId && (
-                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                        creator
-                      </span>
-                    )}
+                    <p className="truncate text-xs text-muted-foreground">
+                      @{member.username}
+                    </p>
                   </div>
-                );
-              })}
+
+                  {member.id === pool.authorId && (
+                    <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                      creator
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>

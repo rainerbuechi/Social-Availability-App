@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import UserAvatar from "@/components/UserAvatar";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -349,14 +350,6 @@ export default function Friends() {
     refresh();
   };
 
-  const initials = (name: string) =>
-    name
-      .split(" ")
-      .map((part) => part[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase();
-
   const nicknameFor = (profileId: string) => nicknames[profileId] ?? null;
 
   const displayName = (profile: Profile) =>
@@ -385,9 +378,11 @@ export default function Friends() {
         className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3"
       >
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-medium text-secondary-foreground">
-            {initials(profile.display_name)}
-          </div>
+          <UserAvatar
+            name={profile.display_name}
+            avatarUrl={profile.avatar_url}
+            size="md"
+          />
 
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">
@@ -491,9 +486,11 @@ export default function Friends() {
         className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3"
       >
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-medium text-secondary-foreground">
-            {initials(profile.display_name)}
-          </div>
+          <UserAvatar
+            name={profile.display_name}
+            avatarUrl={profile.avatar_url}
+            size="md"
+          />
 
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">
@@ -532,9 +529,12 @@ export default function Friends() {
         className="flex items-center justify-between gap-3 rounded-xl border border-[#DA2C43]/20 bg-card p-3 shadow-sm"
       >
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#DA2C43]/10 text-sm font-semibold text-[#DA2C43]">
-            {initials(profile.display_name)}
-          </div>
+          <UserAvatar
+            name={profile.display_name}
+            avatarUrl={profile.avatar_url}
+            size="md"
+            accent
+          />
 
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">

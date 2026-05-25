@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LogOut,
@@ -9,6 +9,8 @@ import {
   Copy,
   Share2,
   QrCode,
+  Camera,
+  Loader2,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { Switch } from "@/components/ui/switch";
@@ -30,6 +32,7 @@ type ProfileUser = {
   username: string;
   email: string;
   inviteCode: string;
+  avatarUrl: string | null;
 };
 
 type InvitedPerson = {
@@ -70,8 +73,56 @@ const NOTIFICATION_PREFS: {
   },
 ];
 
+async function resizeAvatar(file: File): Promise<Blob> {
+  const imageUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = imageUrl;
+    });
+
+    const maxSize = 512;
+    const scale = Math.min(maxSize / image.width, maxSize / image.height, 1);
+    const width = Math.round(image.width * scale);
+    const height = Math.round(image.height * scale);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) {
+      throw new Error("Could not resize image");
+    }
+
+    ctx.drawImage(image, 0, 0, width, height);
+
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Could not compress image"));
+            return;
+          }
+
+          resolve(blob);
+        },
+        "image/jpeg",
+        0.82,
+      );
+    });
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
+}
+
 export default function Profile() {
   const navigate = useNavigate();
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const [user, setUser] = useState<ProfileUser | null>(null);
   const [privacy, setPrivacy] = useState<PrivacySettings | null>(null);
@@ -80,6 +131,7 @@ export default function Profile() {
   const [editUsername, setEditUsername] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [notifLoading, setNotifLoading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [pendingFriendRequests, setPendingFriendRequests] = useState(0);
   const [invitedPeople, setInvitedPeople] = useState<InvitedPerson[]>([]);
 
@@ -103,7 +155,7 @@ export default function Profile() {
 
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("id, username, display_name, invite_code")
+          .select("id, username, display_name, invite_code, avatar_url")
           .eq("id", authUser.id)
           .maybeSingle();
 
@@ -128,6 +180,7 @@ export default function Profile() {
           name: profile?.display_name ?? fallbackName,
           username: profile?.username ?? fallbackUsername,
           inviteCode: profile?.invite_code ?? "",
+          avatarUrl: profile?.avatar_url ?? null,
         };
 
         if (!isMounted) return;
@@ -208,6 +261,71 @@ export default function Profile() {
   const update = async (patch: Partial<PrivacySettings>) => {
     const next = await updatePrivacy(patch);
     setPrivacy(next);
+  };
+
+  const handleAvatarPick = () => {
+    if (avatarUploading) return;
+    avatarInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    event.target.value = "";
+
+    if (!file || !user) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file");
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error("Image is too large. Please choose one under 8 MB.");
+      return;
+    }
+
+    setAvatarUploading(true);
+
+    try {
+      const resized = await resizeAvatar(file);
+      const filePath = `${user.id}/avatar.jpg`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, resized, {
+          contentType: "image/jpeg",
+          upsert: true,
+          cacheControl: "3600",
+        });
+
+      if (uploadError) {
+        toast.error(uploadError.message);
+        return;
+      }
+
+      const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
+
+      const avatarUrl = `${data.publicUrl}?v=${Date.now()}`;
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: avatarUrl })
+        .eq("id", user.id);
+
+      if (profileError) {
+        toast.error(profileError.message);
+        return;
+      }
+
+      setUser({ ...user, avatarUrl });
+      toast.success("Profile picture updated");
+    } catch (error) {
+      console.error(error);
+      toast.error("Could not upload profile picture");
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   const handleCopyInvite = async () => {
@@ -370,8 +488,52 @@ export default function Profile() {
 
       <div className="no-scrollbar flex-1 overflow-y-auto overflow-x-hidden pb-28">
         <section className="flex items-center gap-4 p-5">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xl font-semibold text-primary">
-            {initials}
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={handleAvatarPick}
+              className="group relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-primary-soft text-xl font-semibold text-primary"
+              aria-label="Change profile picture"
+            >
+              {user.avatarUrl ? (
+                <img
+                  src={user.avatarUrl}
+                  alt={user.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                initials
+              )}
+
+              <span className="absolute inset-0 flex items-center justify-center bg-black/35 opacity-0 transition-opacity group-hover:opacity-100">
+                {avatarUploading ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-white" />
+                ) : (
+                  <Camera className="h-5 w-5 text-white" />
+                )}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleAvatarPick}
+              className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-[#DA2C43] text-white shadow-sm"
+              aria-label="Upload profile picture"
+            >
+              {avatarUploading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Camera className="h-3.5 w-3.5" />
+              )}
+            </button>
+
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
           </div>
 
           {editing ? (
@@ -458,6 +620,7 @@ export default function Profile() {
           <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
             <div className="flex items-center gap-2">
               <QrCode className="h-4 w-4 text-[#DA2C43]" />
+
               <p className="text-sm font-semibold">Your personal invite</p>
             </div>
 
