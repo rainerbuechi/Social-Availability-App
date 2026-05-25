@@ -27,6 +27,7 @@
   - feed anpassen (logo für gruppe etc.)
 - Discover fixen
 - Gamification
+- search function for adding ppl to groups
 
 
 
