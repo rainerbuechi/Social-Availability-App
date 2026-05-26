@@ -66,6 +66,7 @@ export interface PostParticipation {
   postId: string;
   userId: string;
   responseMessage?: string;
+  hostReply?: string;
   createdAt: string;
 }
 
