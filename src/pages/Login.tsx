@@ -121,7 +121,9 @@ export default function Login() {
       email: cleanEmail,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/feed`,
+        emailRedirectTo: `${
+          (import.meta.env.VITE_PUBLIC_APP_URL || "https://down-app.ch").replace(/\/$/, "")
+        }/feed`,
         data: {
           display_name: cleanDisplayName,
           username: cleanUsername,

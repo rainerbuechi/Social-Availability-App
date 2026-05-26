@@ -255,7 +255,12 @@ export default function Profile() {
 
   const inviteLink = useMemo(() => {
     if (!user?.inviteCode) return "";
-    return `${window.location.origin}/invite/${user.inviteCode}`;
+    
+    const appUrl =
+      import.meta.env.VITE_PUBLIC_APP_URL || "https://down-app.ch";
+
+    return `${appUrl.replace(/\/$/, "")}/invite/${user.inviteCode}`;
+
   }, [user?.inviteCode]);
 
   const update = async (patch: Partial<PrivacySettings>) => {
