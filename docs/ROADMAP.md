@@ -20,6 +20,17 @@
 - Basic offline fallback
 
 
+## ToDo:
+- Groups order
+- Leave Groups
+- Multiple groups for post & selection of ppl
+  - feed anpassen (logo für gruppe etc.)
+- Discover fixen
+- Gamification
+- search function for adding ppl to groups
+
+
+
 ## Vorherigs ReadMe:
 
 -popup für down? wenn invited (für spezifische gruppe zum beispiel) / notifications
