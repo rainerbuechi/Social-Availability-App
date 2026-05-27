@@ -92,7 +92,7 @@ export async function fetchPlacesFromOverpass(
   categories: PlaceCategory[],
 ): Promise<Place[]> {
   const query = buildOverpassQuery(bbox, categories);
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = 1;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {

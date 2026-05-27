@@ -1,16 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const OVERPASS_ENDPOINT = "https://overpass.kumi.systems/api/interpreter";
+const OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).end();
 
   try {
-    // Vercel parses the body automatically — extract the query string safely
     let query: string | undefined;
 
     if (typeof req.body === "object" && req.body !== null) {
-      query = req.body.data; // body was parsed as { data: "..." }
+      query = req.body.data;
     } else if (typeof req.body === "string") {
       query = new URLSearchParams(req.body).get("data") ?? undefined;
     }
@@ -21,7 +20,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const response = await fetch(OVERPASS_ENDPOINT, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "DownApp/1.0 (https://down-app.ch)",
+      },
       body: `data=${encodeURIComponent(query)}`,
     });
 
