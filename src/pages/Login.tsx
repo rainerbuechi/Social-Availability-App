@@ -13,12 +13,156 @@ export default function Login() {
   const [step, setStep] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
+
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
 
-  // ── PWA install banner ────────────────────────────────────────────────
+  const acceptStoredInvite = async () => {
+    const inviteCode = localStorage.getItem("pending_invite_code");
+
+    if (!inviteCode) return;
+
+    const { error } = await supabase.rpc("accept_invite", {
+      invite_code_input: inviteCode,
+    });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    localStorage.removeItem("pending_invite_code");
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function redirectIfLoggedIn() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!isMounted) return;
+
+      if (session) {
+        await acceptStoredInvite();
+        navigate("/feed", { replace: true });
+        return;
+      }
+
+      setIsCheckingSession(false);
+    }
+
+    redirectIfLoggedIn();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [navigate]);
+
+  const handleLogin = async (e: FormEvent) => {
+    e.preventDefault();
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail || !password) {
+      toast.error("Email and password are required");
+      return;
+    }
+
+    setIsLoading(true);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+
+    if (error) {
+      setIsLoading(false);
+      toast.error(error.message);
+      return;
+    }
+
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+      setIsLoading(false);
+      toast.error("Login worked, but the session was not saved. Please try again.");
+      return;
+    }
+
+    await acceptStoredInvite();
+
+    setIsLoading(false);
+    toast.success("Welcome back!");
+    navigate("/feed", { replace: true });
+  };
+
+  const handleSignup = async (e: FormEvent) => {
+    e.preventDefault();
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanDisplayName = displayName.trim();
+    const cleanUsername = username.trim().toLowerCase();
+
+    if (!cleanDisplayName || !cleanUsername || !cleanEmail || !password) {
+      toast.error("All fields are required");
+      return;
+    }
+
+    setIsLoading(true);
+
+    const { data, error } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password,
+      options: {
+        emailRedirectTo: `${
+          (import.meta.env.VITE_PUBLIC_APP_URL || "https://down-app.ch").replace(/\/$/, "")
+        }/feed`,
+        data: {
+          display_name: cleanDisplayName,
+          username: cleanUsername,
+        },
+      },
+    });
+
+    if (error) {
+      setIsLoading(false);
+      toast.error(error.message);
+      return;
+    }
+
+    if (!data.session) {
+      setIsLoading(false);
+      toast.success("Account created! Please check your email to confirm your account.");
+      setStep("login");
+      setPassword("");
+      return;
+    }
+
+    await acceptStoredInvite();
+
+    setIsLoading(false);
+    toast.success("Account created!");
+    navigate("/feed", { replace: true });
+  };
+
+  if (isCheckingSession) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-200">
+        <div className="text-sm font-medium text-muted-foreground">
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
   const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -53,106 +197,6 @@ export default function Login() {
     setShowBanner(false);
     localStorage.setItem("pwa_banner_dismissed", "1");
   };
-  // ─────────────────────────────────────────────────────────────────────
-
-  const acceptStoredInvite = async () => {
-    const inviteCode = localStorage.getItem("pending_invite_code");
-    if (!inviteCode) return;
-    const { error } = await supabase.rpc("accept_invite", {
-      invite_code_input: inviteCode,
-    });
-    if (error) { console.error(error); return; }
-    localStorage.removeItem("pending_invite_code");
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function redirectIfLoggedIn() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!isMounted) return;
-      if (session) {
-        await acceptStoredInvite();
-        navigate("/feed", { replace: true });
-        return;
-      }
-      setIsCheckingSession(false);
-    }
-
-    redirectIfLoggedIn();
-    return () => { isMounted = false; };
-  }, [navigate]);
-
-  const handleLogin = async (e: FormEvent) => {
-    e.preventDefault();
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || !password) { toast.error("Email and password are required"); return; }
-    setIsLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
-    if (error) { setIsLoading(false); toast.error(error.message); return; }
-
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !session) {
-      setIsLoading(false);
-      toast.error("Login worked, but the session was not saved. Please try again.");
-      return;
-    }
-
-    await acceptStoredInvite();
-    setIsLoading(false);
-    toast.success("Welcome back!");
-    navigate("/feed", { replace: true });
-  };
-
-  const handleSignup = async (e: FormEvent) => {
-    e.preventDefault();
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanDisplayName = displayName.trim();
-    const cleanUsername = username.trim().toLowerCase();
-
-    if (!cleanDisplayName || !cleanUsername || !cleanEmail || !password) {
-      toast.error("All fields are required");
-      return;
-    }
-
-    setIsLoading(true);
-
-    const { data, error } = await supabase.auth.signUp({
-      email: cleanEmail,
-      password,
-      options: {
-        emailRedirectTo: `${
-          (import.meta.env.VITE_PUBLIC_APP_URL || "https://down-app.ch").replace(/\/$/, "")
-        }/feed`,
-        data: { display_name: cleanDisplayName, username: cleanUsername },
-      },
-    });
-
-    if (error) { setIsLoading(false); toast.error(error.message); return; }
-
-    if (!data.session) {
-      setIsLoading(false);
-      toast.success("Account created! Please check your email to confirm your account.");
-      setStep("login");
-      setPassword("");
-      return;
-    }
-
-    await acceptStoredInvite();
-    setIsLoading(false);
-    toast.success("Account created!");
-    navigate("/feed", { replace: true });
-  };
-
-  // Early return AFTER all hooks
-  if (isCheckingSession) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-200">
-        <div className="text-sm font-medium text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-slate-200">
@@ -162,6 +206,7 @@ export default function Login() {
             <h1 className="text-5xl font-bold tracking-tight">
               Down<span className="text-red-500">?</span>
             </h1>
+
             <p className="mt-3 text-base text-muted-foreground">
               See who's free, right now. Just for your people.
             </p>
@@ -171,6 +216,7 @@ export default function Login() {
             <form className="space-y-4" onSubmit={handleLogin}>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
+
                 <Input
                   id="email"
                   type="email"
@@ -184,6 +230,7 @@ export default function Login() {
 
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
+
                 <Input
                   id="password"
                   type="password"
@@ -195,7 +242,11 @@ export default function Login() {
                 />
               </div>
 
-              <Button type="submit" disabled={isLoading} className="h-12 w-full rounded-full text-base">
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="h-12 w-full rounded-full text-base"
+              >
                 {isLoading ? "Signing in..." : "Continue"}
               </Button>
 
@@ -210,10 +261,13 @@ export default function Login() {
             </form>
           ) : (
             <form className="space-y-4" onSubmit={handleSignup}>
-              <p className="text-sm font-medium text-muted-foreground">Create your account</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Create your account
+              </p>
 
               <div className="space-y-2">
                 <Label htmlFor="display-name">Display name</Label>
+
                 <Input
                   id="display-name"
                   value={displayName}
@@ -226,6 +280,7 @@ export default function Login() {
 
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>
+
                 <Input
                   id="username"
                   value={username}
@@ -238,6 +293,7 @@ export default function Login() {
 
               <div className="space-y-2">
                 <Label htmlFor="signup-email">Email</Label>
+
                 <Input
                   id="signup-email"
                   type="email"
@@ -251,6 +307,7 @@ export default function Login() {
 
               <div className="space-y-2">
                 <Label htmlFor="signup-password">Password</Label>
+
                 <Input
                   id="signup-password"
                   type="password"
@@ -263,7 +320,11 @@ export default function Login() {
                 />
               </div>
 
-              <Button type="submit" disabled={isLoading} className="h-12 w-full rounded-full text-base">
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="h-12 w-full rounded-full text-base"
+              >
                 {isLoading ? "Creating account..." : "Create account"}
               </Button>
 
