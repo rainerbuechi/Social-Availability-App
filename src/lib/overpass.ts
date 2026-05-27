@@ -1,6 +1,6 @@
 import { Place, PlaceCategory } from "./types";
 
-const OVERPASS_ENDPOINT = "https://overpass.kumi.systems/api/interpreter";
+const OVERPASS_ENDPOINT = "/api/overpass";
 
 const CATEGORY_TO_OSM: Record<PlaceCategory, { key: string; value: string }[]> = {
   cafe:         [{ key: "amenity", value: "cafe" }],
@@ -92,7 +92,7 @@ export async function fetchPlacesFromOverpass(
   categories: PlaceCategory[],
 ): Promise<Place[]> {
   const query = buildOverpassQuery(bbox, categories);
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = 1;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
