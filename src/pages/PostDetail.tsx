@@ -35,7 +35,6 @@ import {
   listGroups,
   listPostParticipants,
 } from "@/lib/api";
-import { replyToParticipation } from "@/lib/api";
 
 export default function PostDetail() {
   const { postId } = useParams<{ postId: string }>();
@@ -55,8 +54,6 @@ export default function PostDetail() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isJoining, setIsJoining] = useState(false);
   const { displayName } = useNicknames();
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState("");
 
   const refresh = useCallback(async () => {
     if (!postId) return;
@@ -136,14 +133,6 @@ export default function PostDetail() {
     } finally {
       setIsJoining(false);
     }
-  };
-
-  const handleReply = async (participationId: string) => {
-    if (!replyText.trim()) { setReplyingTo(null); return; }
-    await replyToParticipation(participationId, replyText.trim());
-    setReplyingTo(null);
-    setReplyText("");
-    await refresh();
   };
 
   const handleLeave = async () => {
@@ -357,75 +346,33 @@ export default function PostDetail() {
             ) : (
               <div className="space-y-3">
                 {participants.map((pp) => (
-                  <div key={pp.id} className="space-y-1.5">
-                    <div className="flex items-start gap-2">
-                      <UserAvatar
-                        name={pp.user?.name ?? "User"}
-                        avatarUrl={pp.user?.avatarUrl}
-                        size="sm"
-                        className="h-7 w-7 text-xs"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground">
-                          {pp.user ? displayName(pp.user.id, pp.user.name) : "Unknown"}
-                          {pp.userId === currentUser?.id && (
-                            <span className="ml-1 text-xs text-primary">(you)</span>
-                          )}
-                        </p>
-                        {pp.responseMessage && (
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs text-muted-foreground">
-                              "{pp.responseMessage}"
-                            </p>
-                            {isAuthor && !pp.hostReply && replyingTo !== pp.id && (
-                              <button
-                                onClick={() => { setReplyingTo(pp.id); setReplyText(""); }}
-                                className="text-[11px] font-medium text-[#DA2C43]"
-                              >
-                                Reply
-                              </button>
-                            )}
-                          </div>
+                  <div key={pp.id} className="flex items-start gap-2">
+                    <UserAvatar
+                      name={pp.user?.name ?? "User"}
+                      avatarUrl={pp.user?.avatarUrl}
+                      size="sm"
+                      className="h-7 w-7 text-xs"
+                    />
+
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground">
+                        {pp.user
+                          ? displayName(pp.user.id, pp.user.name)
+                          : "Unknown"}
+
+                        {pp.userId === currentUser?.id && (
+                          <span className="ml-1 text-xs text-primary">
+                            (you)
+                          </span>
                         )}
-                      </div>
-                    </div>
+                      </p>
 
-                    {/* Host reply bubble */}
-                    {pp.hostReply && (
-                      <div className="ml-9 rounded-xl border border-[#DA2C43]/20 bg-[#DA2C43]/8 px-3 py-2">
-                        <p className="mb-0.5 text-[11px] font-semibold text-[#DA2C43]">
-                          {author ? displayName(author.id, author.name) : "Host"}
+                      {pp.responseMessage && (
+                        <p className="text-xs text-muted-foreground">
+                          “{pp.responseMessage}”
                         </p>
-                        <p className="text-xs text-foreground">{pp.hostReply}</p>
-                      </div>
-                    )}
-
-                    {/* Inline reply input */}
-                    {isAuthor && replyingTo === pp.id && (
-                      <div className="ml-9 flex items-center gap-2">
-                        <Input
-                          placeholder="Reply..."
-                          value={replyText}
-                          onChange={(e) => setReplyText(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && handleReply(pp.id)}
-                          className="h-8 flex-1 rounded-full text-xs bg-card focus-visible:ring-[#DA2C43]"
-                          autoFocus
-                        />
-                        <Button
-                          size="icon"
-                          className="h-8 w-8 shrink-0 rounded-full bg-[#DA2C43] text-white hover:bg-[#c9273c]"
-                          onClick={() => handleReply(pp.id)}
-                        >
-                          <Send className="h-3 w-3" />
-                        </Button>
-                        <button
-                          onClick={() => setReplyingTo(null)}
-                          className="text-xs text-muted-foreground"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

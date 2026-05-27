@@ -1130,7 +1130,6 @@ type SupabasePostParticipationRow = {
   post_id: string;
   user_id: string;
   response_message: string | null;
-  host_reply: string | null;
   created_at: string;
 };
 
@@ -1142,7 +1141,6 @@ function mapSupabasePostParticipation(
     postId: row.post_id,
     userId: row.user_id,
     responseMessage: row.response_message ?? undefined,
-    hostReply: row.host_reply ?? undefined,
     createdAt: row.created_at,
   };
 }
@@ -1152,7 +1150,7 @@ export async function listPostParticipants(
 ): Promise<PostParticipation[]> {
   const { data, error } = await supabase
     .from("post_participations")
-    .select("id, post_id, user_id, response_message, host_reply, created_at")
+    .select("id, post_id, user_id, response_message, created_at")
     .eq("post_id", postId)
     .order("created_at", { ascending: true });
 
@@ -1240,19 +1238,6 @@ export async function leavePost(postId: string): Promise<boolean> {
     return false;
   }
 
-  return true;
-}
-
-export async function replyToParticipation(
-  participationId: string,
-  reply: string,
-): Promise<boolean> {
-  const { error } = await supabase
-    .from("post_participations")
-    .update({ host_reply: reply.trim() || null })
-    .eq("id", participationId);
-
-  if (error) { console.error("Reply failed:", error); return false; }
   return true;
 }
 

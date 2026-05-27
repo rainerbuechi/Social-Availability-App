@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabaseClient";
-import { X } from "lucide-react";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -163,41 +162,6 @@ export default function Login() {
     );
   }
 
-  const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
-  const [showBanner, setShowBanner] = useState(false);
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-
-  useEffect(() => {
-    if (window.matchMedia("(display-mode: standalone)").matches) return;
-    if (localStorage.getItem("pwa_banner_dismissed")) return;
-
-    if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
-      setShowBanner(true);
-      return;
-    }
-
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setInstallPrompt(e);
-      setShowBanner(true);
-    };
-
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
-
-  const handleInstall = async () => {
-    if (!installPrompt) return;
-    (installPrompt as any).prompt();
-    const { outcome } = await (installPrompt as any).userChoice;
-    if (outcome === "accepted") setShowBanner(false);
-  };
-
-  const dismissBanner = () => {
-    setShowBanner(false);
-    localStorage.setItem("pwa_banner_dismissed", "1");
-  };
-
   return (
     <div className="min-h-screen bg-slate-200">
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col overflow-hidden bg-background shadow-xl">
@@ -337,32 +301,6 @@ export default function Login() {
                 <span className="font-medium text-primary">Sign in</span>
               </button>
             </form>
-          )}
-
-          {showBanner && (
-            <div className="mb-2 flex items-start gap-3 rounded-2xl border border-border bg-card p-3">
-              <div className="flex-1">
-                <p className="text-sm font-semibold">Add to Home Screen</p>
-                <p className="text-xs text-muted-foreground">
-                  {isIOS
-                    ? "Tap Share → Add to Home Screen for the best experience"
-                    : "Install Down for quick access from your home screen"}
-                </p>
-              </div>
-
-              {!isIOS && installPrompt && (
-                <button
-                  onClick={handleInstall}
-                  className="shrink-0 rounded-full bg-[#DA2C43] px-3 py-1.5 text-xs font-semibold text-white"
-                >
-                  Install
-                </button>
-              )}
-
-              <button onClick={dismissBanner} className="shrink-0 text-muted-foreground">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
           )}
 
           <p className="pt-8 text-center text-xs text-muted-foreground">
