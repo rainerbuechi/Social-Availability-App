@@ -1,6 +1,6 @@
 import { Place, PlaceCategory } from "./types";
 
-const OVERPASS_ENDPOINT = "https://overpass.kumi.systems/api/interpreter";
+const OVERPASS_ENDPOINT = "/api/overpass";
 
 const CATEGORY_TO_OSM: Record<PlaceCategory, { key: string; value: string }[]> = {
   cafe:         [{ key: "amenity", value: "cafe" }],
