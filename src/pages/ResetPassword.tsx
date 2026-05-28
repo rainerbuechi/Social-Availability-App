@@ -44,7 +44,7 @@ export default function ResetPassword() {
   return (
     <div className="min-h-screen bg-slate-200">
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col overflow-hidden bg-background shadow-xl">
-        <div className="no-scrollbar flex flex-1 flex-col justify-between overflow-y-auto p-6">
+        <div className="no-scrollbar flex flex-1 flex-col justify-center gap-10 overflow-y-auto p-6">
           <div className="pt-16">
             <h1 className="text-5xl font-bold tracking-tight">
               Down<span className="text-red-500">?</span>

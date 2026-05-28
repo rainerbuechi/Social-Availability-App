@@ -31,6 +31,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/invite/:code" element={<InviteRedirect />} />
 
           <Route element={<ProtectedRoute />}>
@@ -46,7 +47,6 @@ const App = () => (
               <Route path="/profile" element={<Profile />} />
               <Route path="/discover" element={<Discover />} />
               <Route path="/places/:placeId" element={<PlaceDetail />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
             </Route>
           </Route>
 
