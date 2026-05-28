@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabaseClient";
 export default function Login() {
   const navigate = useNavigate();
 
-  const [step, setStep] = useState<"login" | "signup">("login");
+  const [step, setStep] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -152,6 +152,20 @@ export default function Login() {
     navigate("/feed", { replace: true });
   };
 
+  const handleForgotPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) { toast.error("Please enter your email"); return; }
+    setIsLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setIsLoading(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Check your email for a reset link!");
+    setStep("login");
+  };
+
   if (isCheckingSession) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-200">
@@ -206,6 +220,16 @@ export default function Login() {
                 />
               </div>
 
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => setStep("forgot")}
+                  className="text-sm text-muted-foreground hover:text-primary"
+                >
+                  Forgot password?
+                </button>
+              </div>
+
               <Button
                 type="submit"
                 disabled={isLoading}
@@ -223,7 +247,7 @@ export default function Login() {
                 <span className="font-medium text-primary">Create account</span>
               </button>
             </form>
-          ) : (
+          ) : step === "signup" ? (
             <form className="space-y-4" onSubmit={handleSignup}>
               <p className="text-sm font-medium text-muted-foreground">
                 Create your account
@@ -299,6 +323,42 @@ export default function Login() {
               >
                 Already have an account?{" "}
                 <span className="font-medium text-primary">Sign in</span>
+              </button>
+            </form>
+          ) : (
+            <form className="space-y-4" onSubmit={handleForgotPassword}>
+              <p className="text-sm font-medium text-muted-foreground">
+                Reset your password
+              </p>
+
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email</Label>
+
+                <Input
+                  id="reset-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
+                />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="h-12 w-full rounded-full text-base"
+              >
+                {isLoading ? "Sending..." : "Send reset link"}
+              </Button>
+
+              <button
+                type="button"
+                onClick={() => setStep("login")}
+                className="block w-full text-center text-sm text-muted-foreground"
+              >
+                Back to{" "}
+                <span className="font-medium text-primary">sign in</span>
               </button>
             </form>
           )}

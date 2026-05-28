@@ -19,6 +19,7 @@ import PoolDetail from "./pages/PoolDetail";
 import Discover from "./pages/Discover";
 import PlaceDetail from "./pages/PlaceDetail";
 import InviteRedirect from "./pages/InviteRedirect";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,7 @@ const App = () => (
               <Route path="/profile" element={<Profile />} />
               <Route path="/discover" element={<Discover />} />
               <Route path="/places/:placeId" element={<PlaceDetail />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
             </Route>
           </Route>
 
