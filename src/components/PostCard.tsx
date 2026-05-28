@@ -8,7 +8,7 @@ import {
   Users,
 } from "lucide-react";
 
-import { AvailabilityPost, FriendGroup, User } from "@/lib/types";
+import { AvailabilityPost, User } from "@/lib/types";
 import { formatTimeRange, getActivityMeta } from "@/lib/status";
 import {
   deletePost,
@@ -16,7 +16,6 @@ import {
   getParticipantCount,
   getUser,
   isCurrentUserParticipating,
-  listGroups,
 } from "@/lib/api";
 
 import {
@@ -39,7 +38,6 @@ export default function PostCard({ post, onDeleted }: Props) {
   const navigate = useNavigate();
 
   const [author, setAuthor] = useState<User | undefined>();
-  const [group, setGroup] = useState<FriendGroup | undefined>();
   const [isOwn, setIsOwn] = useState(false);
   const [participantCount, setParticipantCount] = useState(0);
   const [imDown, setImDown] = useState(false);
@@ -47,14 +45,6 @@ export default function PostCard({ post, onDeleted }: Props) {
 
   useEffect(() => {
     getUser(post.authorId).then(setAuthor);
-
-    if (post.visibleToGroupId) {
-      listGroups().then((gs) =>
-        setGroup(gs.find((g) => g.id === post.visibleToGroupId)),
-      );
-    } else {
-      setGroup(undefined);
-    }
 
     getCurrentUser().then((me) => setIsOwn(me?.id === post.authorId));
     getParticipantCount(post.id).then(setParticipantCount);
@@ -75,7 +65,15 @@ export default function PostCard({ post, onDeleted }: Props) {
     return post.locationName;
   })();
 
-  const audienceLabel = group ? `${group.emoji} ${group.name}` : "👥 All friends";
+  const audienceLabel = (() => {
+    if (post.visibleToAllFriends) return "👥 All friends";
+    const parts: string[] = [];
+    if (post.visibleToGroupIds.length > 0)
+      parts.push(`${post.visibleToGroupIds.length} group${post.visibleToGroupIds.length > 1 ? "s" : ""}`);
+    if (post.visibleToUserIds.length > 0)
+      parts.push(`${post.visibleToUserIds.length} person${post.visibleToUserIds.length > 1 ? "s" : ""}`);
+    return parts.length > 0 ? parts.join(" · ") : "Private";
+  })();
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();

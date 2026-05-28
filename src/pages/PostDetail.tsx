@@ -45,7 +45,7 @@ export default function PostDetail() {
 
   const [post, setPost] = useState<AvailabilityPost | null>(null);
   const [author, setAuthor] = useState<User | undefined>();
-  const [group, setGroup] = useState<FriendGroup | undefined>();
+  const [visibleGroups, setVisibleGroups] = useState<FriendGroup[]>([]);
   const [participants, setParticipants] = useState<
     (PostParticipation & { user?: User })[]
   >([]);
@@ -84,7 +84,7 @@ export default function PostDetail() {
     ]);
 
     setAuthor(a);
-    setGroup(gs.find((g) => g.id === p.visibleToGroupId));
+    setVisibleGroups(gs.filter(g => p.visibleToGroupIds.includes(g.id)));
     setIsDown(participating);
     setCount(cnt);
 
@@ -320,7 +320,15 @@ export default function PostDetail() {
             <div className="flex items-center gap-2 text-muted-foreground">
               <Eye className="h-4 w-4" />
               <span>
-                {group ? `${group.emoji} ${group.name}` : "👥 All friends"}
+                {post.visibleToAllFriends
+                  ? "👥 All friends"
+                  : [
+                      ...visibleGroups.map(g => `${g.emoji} ${g.name}`),
+                      ...(post.visibleToUserIds.length > 0
+                        ? [`${post.visibleToUserIds.length} friend${post.visibleToUserIds.length > 1 ? "s" : ""}`]
+                        : []),
+                    ].join(" · ") || "Private"
+                }
               </span>
             </div>
           </div>
