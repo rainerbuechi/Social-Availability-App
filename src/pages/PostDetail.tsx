@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -57,35 +57,7 @@ export default function PostDetail() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isJoining, setIsJoining] = useState(false);
   const [recentChatMessages, setRecentChatMessages] = useState<{ body: string; authorName: string }[]>([]);
-  const chatCardRef = useRef<HTMLDivElement>(null);
-  const [expanding, setExpanding] = useState(false);
-  const [expandStyle, setExpandStyle] = useState<React.CSSProperties>({});
 
-  const handleChatClick = () => {
-    if (!chatCardRef.current) { navigate(`/posts/${postId}/chat`); return; }
-    const rect = chatCardRef.current.getBoundingClientRect();
-    setExpandStyle({
-      position: "fixed",
-      top: rect.top,
-      left: rect.left,
-      width: rect.width,
-      height: rect.height,
-      borderRadius: "12px",
-      backgroundColor: "hsl(var(--card))",
-      zIndex: 50,
-      transition: "all 320ms cubic-bezier(0.4, 0, 0.2, 1)",
-    });
-    setExpanding(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      setExpandStyle(prev => ({
-        ...prev,
-        top: 0, left: 0,
-        width: "100vw", height: "100vh",
-        borderRadius: "0px",
-      }));
-    }));
-    setTimeout(() => navigate(`/posts/${postId}/chat`), 340);
-  };
   const { displayName } = useNicknames();
 
   const refresh = useCallback(async () => {
@@ -483,9 +455,8 @@ export default function PostDetail() {
 
           {(isAuthor || isDown) && recentChatMessages.length > 0 && (
             <div
-              ref={chatCardRef}
               className="cursor-pointer rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-primary-soft/70"
-              onClick={handleChatClick}
+              onClick={() => navigate(`/posts/${postId}/chat`)} 
             >
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-sm font-semibold">Chat</p>
@@ -521,7 +492,6 @@ export default function PostDetail() {
           )}
         </div>
       </div>
-      {expanding && <div style={expandStyle} />}
     </div>
   );
 }
