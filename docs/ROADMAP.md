@@ -23,23 +23,16 @@
 ## ToDo:
 - Groups order
 - Leave Groups
-- Multiple groups for post & selection of ppl
-  - feed anpassen (logo für gruppe etc.)
-- Discover fixen
 - Gamification
 - search function for adding ppl to groups
-
 
 
 ## Vorherigs ReadMe:
 
 -popup für down? wenn invited (für spezifische gruppe zum beispiel) / notifications
 -leiste discovery tab -> vorschläge 
-- Events tab
 -login/security/contact sharing dur telefonnummere?
   -privacy settings (public, friends...)
 -kalender mit button 
 -ui
--notifications generell
-- feed dur täg trenne
-- Discory list view needs a way to recommend to groups
+
