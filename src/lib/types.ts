@@ -38,11 +38,13 @@ export interface AvailabilityPost {
   authorId: string;
   status: StatusType;
   message?: string;
-  startTime: string; // ISO
-  endTime: string;   // ISO
+  startTime: string;
+  endTime: string;
   locationName?: string;
   locationPrecision: LocationPrecision;
-  visibleToGroupId: string;
+  visibleToGroupIds: string[];  
+  visibleToUserIds: string[];    
+  visibleToAllFriends: boolean;  
   createdAt: string;
 }
 
@@ -90,7 +92,9 @@ export interface WaitingPool {
   date: string;
   startTime?: string;
   endTime?: string;
-  visibleToGroupId: string;
+  visibleToGroupIds: string[];
+  visibleToUserIds: string[];
+  visibleToAllFriends: boolean;
   memberIds: string[];
   chatGroupId?: string;
   minPeople: number;

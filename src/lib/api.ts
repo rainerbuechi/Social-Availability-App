@@ -743,18 +743,10 @@ export async function deleteGroup(id: string): Promise<boolean> {
 }
 
 export async function groupHasPosts(groupId: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("posts")
-    .select("id")
-    .eq("visible_to_group_id", groupId)
-    .limit(1);
-
-  if (error) {
-    console.error("Check group posts failed:", error);
-    return false;
-  }
-
-  return (data ?? []).length > 0;
+  const { data: old } = await supabase.from("posts").select("id").eq("visible_to_group_id", groupId).limit(1);
+  if ((old ?? []).length > 0) return true;
+  const { data: newV } = await supabase.from("post_visibility").select("post_id").eq("type", "group").eq("group_id", groupId).limit(1);
+  return (newV ?? []).length > 0;
 }
 
 export async function removeUserFromAllGroups(userId: string): Promise<void> {
@@ -770,7 +762,28 @@ export async function removeUserFromAllGroups(userId: string): Promise<void> {
   }
 }
 
+async function setPostVisibility(
+  postId: string,
+  { groupIds, userIds, allFriends }: { groupIds: string[]; userIds: string[]; allFriends: boolean },
+): Promise<void> {
+  await supabase.from("post_visibility").delete().eq("post_id", postId);
+  const rows: object[] = [];
+  if (allFriends) rows.push({ post_id: postId, type: "all_friends" });
+  for (const gId of groupIds) rows.push({ post_id: postId, type: "group", group_id: gId });
+  for (const uId of userIds) rows.push({ post_id: postId, type: "user", user_id: uId });
+  if (rows.length > 0) {
+    const { error } = await supabase.from("post_visibility").insert(rows);
+    if (error) throw new Error(error.message);
+  }
+}
+
 /* ── Posts ───────────────────────────────────────── */
+
+type PostVisibilityRow = {
+  type: string;
+  group_id: string | null;
+  user_id: string | null;
+};
 
 type SupabasePostRow = {
   id: string;
@@ -783,9 +796,12 @@ type SupabasePostRow = {
   location_precision: string;
   visible_to_group_id: string | null;
   created_at: string;
+  post_visibility?: PostVisibilityRow[];
 };
 
 function mapSupabasePost(row: SupabasePostRow): AvailabilityPost {
+  const pv = row.post_visibility ?? [];
+  const isOldPost = pv.length === 0;
   return {
     id: row.id,
     authorId: row.author_id,
@@ -794,9 +810,14 @@ function mapSupabasePost(row: SupabasePostRow): AvailabilityPost {
     startTime: row.start_time,
     endTime: row.end_time,
     locationName: row.location_name ?? undefined,
-    locationPrecision:
-      row.location_precision as AvailabilityPost["locationPrecision"],
-    visibleToGroupId: row.visible_to_group_id ?? "",
+    locationPrecision: row.location_precision as AvailabilityPost["locationPrecision"],
+    visibleToAllFriends: isOldPost
+      ? row.visible_to_group_id === null
+      : pv.some(v => v.type === "all_friends"),
+    visibleToGroupIds: isOldPost
+      ? (row.visible_to_group_id ? [row.visible_to_group_id] : [])
+      : pv.filter(v => v.type === "group" && v.group_id).map(v => v.group_id!),
+    visibleToUserIds: pv.filter(v => v.type === "user" && v.user_id).map(v => v.user_id!),
     createdAt: row.created_at,
   };
 }
@@ -807,7 +828,7 @@ export async function listFeed(): Promise<AvailabilityPost[]> {
   const { data, error } = await supabase
     .from("posts")
     .select(
-      "id, author_id, status, message, start_time, end_time, location_name, location_precision, visible_to_group_id, created_at",
+      "id, author_id, status, message, start_time, end_time, location_name, location_precision, visible_to_group_id, created_at, post_visibility(type, group_id, user_id)",
     )
     .gt("end_time", now)
     .order("start_time", { ascending: true });
@@ -820,26 +841,38 @@ export async function listFeed(): Promise<AvailabilityPost[]> {
   return ((data ?? []) as SupabasePostRow[]).map(mapSupabasePost);
 }
 
-export async function listPostsByGroup(
-  groupId: string,
-): Promise<AvailabilityPost[]> {
+export async function listPostsByGroup(groupId: string): Promise<AvailabilityPost[]> {
   const now = new Date().toISOString();
+  const fields = "id, author_id, status, message, start_time, end_time, location_name, location_precision, visible_to_group_id, created_at, post_visibility(type, group_id, user_id)";
 
-  const { data, error } = await supabase
-    .from("posts")
-    .select(
-      "id, author_id, status, message, start_time, end_time, location_name, location_precision, visible_to_group_id, created_at",
-    )
+  const { data: visData } = await supabase
+    .from("post_visibility")
+    .select("post_id")
+    .eq("type", "group")
+    .eq("group_id", groupId);
+
+  const newIds = (visData ?? []).map(v => v.post_id as string);
+
+  const { data: oldData } = await supabase
+    .from("posts").select(fields)
     .eq("visible_to_group_id", groupId)
-    .gt("end_time", now)
-    .order("start_time", { ascending: true });
+    .gt("end_time", now).order("start_time", { ascending: true });
 
-  if (error) {
-    console.error("List group posts failed:", error);
-    return [];
+  const results: SupabasePostRow[] = [...((oldData ?? []) as SupabasePostRow[])];
+  const seenIds = new Set(results.map(r => r.id));
+
+  if (newIds.length > 0) {
+    const { data: newData } = await supabase
+      .from("posts").select(fields)
+      .in("id", newIds)
+      .gt("end_time", now).order("start_time", { ascending: true });
+    for (const row of (newData ?? []) as SupabasePostRow[]) {
+      if (!seenIds.has(row.id)) { seenIds.add(row.id); results.push(row); }
+    }
   }
 
-  return ((data ?? []) as SupabasePostRow[]).map(mapSupabasePost);
+  results.sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
+  return results.map(mapSupabasePost);
 }
 
 export async function getPost(
@@ -848,7 +881,7 @@ export async function getPost(
   const { data, error } = await supabase
     .from("posts")
     .select(
-      "id, author_id, status, message, start_time, end_time, location_name, location_precision, visible_to_group_id, created_at",
+      "id, author_id, status, message, start_time, end_time, location_name, location_precision, visible_to_group_id, created_at, post_visibility(type, group_id, user_id)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -869,7 +902,6 @@ export async function createPost(
     throw new Error("You must be logged in to create a post");
   }
 
-  const visibleToGroupId = input.visibleToGroupId || null;
 
   const { data, error } = await supabase
     .from("posts")
@@ -881,7 +913,6 @@ export async function createPost(
       end_time: input.endTime,
       location_name: input.locationName ?? null,
       location_precision: input.locationPrecision,
-      visible_to_group_id: visibleToGroupId,
     })
     .select(
       "id, author_id, status, message, start_time, end_time, location_name, location_precision, visible_to_group_id, created_at",
@@ -895,7 +926,7 @@ export async function createPost(
 
   (async () => {
     try {
-      const group = await getGroup(input.visibleToGroupId);
+      const group = await getGroup(input.visibleToGroupIds[0] ?? "");
       const others = (group?.memberIds ?? []).filter((id) => id !== me.id);
       const activityLabel = input.status.startsWith("custom:")
         ? input.status.split(":")[1]
@@ -910,7 +941,18 @@ export async function createPost(
     } catch {}
   })();
 
-  return mapSupabasePost(data as SupabasePostRow);
+  await setPostVisibility(data.id, {
+    groupIds: input.visibleToGroupIds,
+    userIds: input.visibleToUserIds,
+    allFriends: input.visibleToAllFriends,
+  });
+
+  return {
+    ...mapSupabasePost(data as SupabasePostRow),
+    visibleToGroupIds: input.visibleToGroupIds,
+    visibleToUserIds: input.visibleToUserIds,
+    visibleToAllFriends: input.visibleToAllFriends,
+  };
 }
 
 export async function updatePost(
@@ -923,8 +965,6 @@ export async function updatePost(
     throw new Error("You must be logged in to update a post");
   }
 
-  const visibleToGroupId = input.visibleToGroupId || null;
-
   const { data, error } = await supabase
     .from("posts")
     .update({
@@ -934,7 +974,6 @@ export async function updatePost(
       end_time: input.endTime,
       location_name: input.locationName ?? null,
       location_precision: input.locationPrecision,
-      visible_to_group_id: visibleToGroupId,
     })
     .eq("id", id)
     .eq("author_id", meId)
@@ -952,7 +991,18 @@ export async function updatePost(
     return undefined;
   }
 
-  return mapSupabasePost(data as SupabasePostRow);
+  await setPostVisibility(id, {
+    groupIds: input.visibleToGroupIds,
+    userIds: input.visibleToUserIds,
+    allFriends: input.visibleToAllFriends,
+  });
+
+  return {
+    ...mapSupabasePost(data as SupabasePostRow),
+    visibleToGroupIds: input.visibleToGroupIds,
+    visibleToUserIds: input.visibleToUserIds,
+    visibleToAllFriends: input.visibleToAllFriends,
+  };
 }
 
 export async function deletePost(id: string): Promise<boolean> {

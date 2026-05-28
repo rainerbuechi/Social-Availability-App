@@ -1,6 +1,6 @@
   import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
   import { useNavigate, useSearchParams } from "react-router-dom";
-  import { ArrowLeft, Plus } from "lucide-react";
+  import { ArrowLeft, Plus, Users} from "lucide-react";
 
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
@@ -18,8 +18,8 @@
     getActivityMeta,
     isCustomActivity,
   } from "@/lib/status";
-  import { FriendGroup, LocationPrecision, StatusType } from "@/lib/types";
-  import { createPost, getPost, listGroups, updatePost } from "@/lib/api";
+  import { AvailabilityPost, FriendGroup, LocationPrecision, StatusType, User } from "@/lib/types";
+  import { createPost, listAcceptedFriends, getPost, listGroups, updatePost } from "@/lib/api";
 
   const pad = (n: number) => n.toString().padStart(2, "0");
   const toLocalTime = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -181,7 +181,11 @@
     const [end, setEnd] = useState(toLocalTime(initialEndDate));
     const [locationName, setLocationName] = useState("");
     const [groups, setGroups] = useState<FriendGroup[]>([]);
-    const [groupId, setGroupId] = useState<string>("");
+    const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
+    const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+    const [allFriends, setAllFriends] = useState(false);
+    const [friends, setFriends] = useState<User[]>([]);
+    const [friendSearch, setFriendSearch] = useState("");
     const [loaded, setLoaded] = useState(!editId);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -189,12 +193,9 @@
     const [customLabel, setCustomLabel] = useState("");
 
     useEffect(() => {
-      listGroups().then((gs) => {
-        const realGroups = gs.filter(
-          (group) => group.name.trim().toLowerCase() !== "everyone",
-        );
-
-        setGroups(realGroups);
+      Promise.all([listGroups(), listAcceptedFriends()]).then(([gs, fr]) => {
+        setGroups(gs.filter(g => g.name.trim().toLowerCase() !== "everyone"));
+        setFriends(fr);
       });
     }, []);
 
@@ -226,7 +227,9 @@
         setStart(toLocalTime(new Date(post.startTime)));
         setEnd(toLocalTime(postEndDate));
         setLocationName(post.locationName ?? "");
-        setGroupId(post.visibleToGroupId ?? "");
+        setSelectedGroupIds(post.visibleToGroupIds);
+        setSelectedUserIds(post.visibleToUserIds);
+        setAllFriends(post.visibleToAllFriends);
         setLoaded(true);
       });
     }, [editId, navigate]);
@@ -291,8 +294,15 @@
         endTime: endDate.toISOString(),
         locationName: locationName.trim() || undefined,
         locationPrecision: "exact" as LocationPrecision,
-        visibleToGroupId: groupId || "",
+        visibleToGroupIds: selectedGroupIds,
+        visibleToUserIds: selectedUserIds,
+        visibleToAllFriends: allFriends,
       };
+
+      if (!allFriends && selectedGroupIds.length === 0 && selectedUserIds.length === 0) {
+        toast.error("Please select who can see this post.");
+        return;
+      }
 
       setIsSaving(true);
 
@@ -543,57 +553,134 @@
             />
           </section>
 
-          <section className="space-y-2">
-            <Label>Visible to</Label>
+          <section className="space-y-3">
+            <p className="text-sm font-semibold text-foreground">Visible to</p>
 
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => setGroupId("")}
-                className={cn(
-                  "flex w-full items-center justify-between gap-3 rounded-2xl border-2 p-3 text-left shadow-sm transition-colors",
-                  groupId === ""
-                    ? "border-[#DA2C43] bg-[#DA2C43]/10"
-                    : "border-border bg-card hover:border-primary/35 hover:bg-primary-soft/70",
+            {/* All friends toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                setAllFriends(!allFriends);
+                if (!allFriends) { setSelectedGroupIds([]); setSelectedUserIds([]); }
+              }}
+              className={cn(
+                "flex w-full items-center justify-between rounded-2xl border-2 p-3 text-left transition-colors",
+                allFriends
+                  ? "border-[#DA2C43] bg-[#DA2C43]/10"
+                  : "border-border bg-card hover:border-primary/35 hover:bg-primary-soft/70",
+              )}
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold">
+                <Users className="h-4 w-4" />
+                All friends
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground">Your accepted friends</span>
+            </button>
+
+            {!allFriends && (
+              <>
+                {/* Groups */}
+                {groups.length > 0 && (
+                  <>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Groups
+                    </p>
+                    <div className="space-y-2">
+                      {groups.map((group) => {
+                        const selected = selectedGroupIds.includes(group.id);
+                        return (
+                          <button
+                            key={group.id}
+                            type="button"
+                            onClick={() =>
+                              setSelectedGroupIds(prev =>
+                                prev.includes(group.id)
+                                  ? prev.filter(id => id !== group.id)
+                                  : [...prev, group.id],
+                              )
+                            }
+                            className={cn(
+                              "flex w-full items-center justify-between rounded-2xl border-2 p-3 text-left transition-colors",
+                              selected
+                                ? "border-[#DA2C43] bg-[#DA2C43]/10"
+                                : "border-border bg-card hover:border-primary/35 hover:bg-primary-soft/70",
+                            )}
+                          >
+                            <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+                              <span className="text-lg">{group.emoji}</span>
+                              <span className="truncate">{group.name}</span>
+                            </span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {group.memberIds.length} people
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
-              >
-                <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
-                  <span className="text-lg">👥</span>
-                  <span className="truncate">All friends</span>
-                </span>
 
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  Your accepted friends
-                </span>
-              </button>
+                {/* People */}
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  People
+                </p>
 
-              {groups.map((group) => {
-                const active = group.id === groupId;
+                {/* Selected people chips */}
+                {selectedUserIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedUserIds.map(uid => {
+                      const f = friends.find(fr => fr.id === uid);
+                      return (
+                        <span
+                          key={uid}
+                          className="flex items-center gap-1 rounded-full border border-[#DA2C43] bg-[#DA2C43]/10 px-3 py-1 text-sm font-medium text-[#DA2C43]"
+                        >
+                          {f?.name ?? uid}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedUserIds(prev => prev.filter(id => id !== uid))}
+                            className="ml-0.5 leading-none hover:text-[#c9273c]"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
 
-                return (
+                {/* Search input */}
+                <Input
+                  placeholder="Search friends…"
+                  value={friendSearch}
+                  onChange={e => setFriendSearch(e.target.value)}
+                  className="h-10 rounded-full bg-card"
+                />
+
+                {/* Friend results */}
+                {friends.filter(f =>
+                  !selectedUserIds.includes(f.id) &&
+                  (friendSearch.trim() === "" ||
+                    f.name.toLowerCase().includes(friendSearch.toLowerCase()) ||
+                    f.username.toLowerCase().includes(friendSearch.toLowerCase()))
+                ).slice(0, friendSearch.trim() ? undefined : 5).map(friend => (
                   <button
-                    key={group.id}
+                    key={friend.id}
                     type="button"
-                    onClick={() => setGroupId(group.id)}
-                    className={cn(
-                      "flex w-full items-center justify-between gap-3 rounded-2xl border-2 p-3 text-left shadow-sm transition-colors",
-                      active
-                        ? "border-[#DA2C43] bg-[#DA2C43]/10"
-                        : "border-border bg-card hover:border-primary/35 hover:bg-primary-soft/70",
-                    )}
+                    onClick={() => { setSelectedUserIds(prev => [...prev, friend.id]); setFriendSearch(""); }}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 text-left text-sm transition-colors hover:bg-primary-soft/70"
                   >
-                    <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
-                      <span className="text-lg">{group.emoji}</span>
-                      <span className="truncate">{group.name}</span>
-                    </span>
-
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {group.memberIds.length} people
-                    </span>
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-semibold text-primary">
+                      {friend.name[0]?.toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{friend.name}</p>
+                      <p className="text-xs text-muted-foreground">@{friend.username}</p>
+                    </div>
                   </button>
-                );
-              })}
-            </div>
+                ))}
+              </>
+            )}
           </section>
 
           <Button
