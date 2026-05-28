@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
+  ChevronRight,
   Clock,
   Eye,
   EyeOff,
@@ -34,6 +35,8 @@ import {
   leavePost,
   listGroups,
   listPostParticipants,
+  sendPostChatMessage,
+  listPostChatMessages,
 } from "@/lib/api";
 
 export default function PostDetail() {
@@ -53,6 +56,8 @@ export default function PostDetail() {
   const [showInput, setShowInput] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isJoining, setIsJoining] = useState(false);
+  const [recentChatMessages, setRecentChatMessages] = useState<{ body: string; authorName: string }[]>([]);
+
   const { displayName } = useNicknames();
 
   const refresh = useCallback(async () => {
@@ -91,6 +96,15 @@ export default function PostDetail() {
     );
 
     setParticipants(withUsers);
+    const recentMsgs = await listPostChatMessages(postId);
+    const last3 = recentMsgs.slice(-3);
+    const withNames = await Promise.all(
+      last3.map(async (m) => {
+        const u = await getUser(m.authorId);
+        return { body: m.body, authorName: u?.name ?? "?" };
+      })
+    );
+    setRecentChatMessages(withNames);
     setLoading(false);
   }, [postId]);
 
@@ -105,12 +119,14 @@ export default function PostDetail() {
 
   const handleJoin = async () => {
     if (!postId || isJoining) return;
-
     setIsJoining(true);
-
     try {
       if (showInput) {
-        await joinPost(postId, responseMsg.trim() || undefined);
+        const note = responseMsg.trim();
+        await joinPost(postId, note || undefined);
+        if (note) {
+          try { await sendPostChatMessage(postId, note); } catch (_) {}
+        }
         setShowInput(false);
         setResponseMsg("");
         await refresh();
@@ -435,6 +451,38 @@ export default function PostDetail() {
                 </div>
               )}
             </div>
+          )}
+
+          {(isAuthor || isDown) && recentChatMessages.length > 0 && (
+            <div
+              className="cursor-pointer rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-primary-soft/70"
+              onClick={() => navigate(`/posts/${postId}/chat`)} 
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-semibold">Chat</p>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  View all <ChevronRight className="h-3 w-3" />
+                </span>
+              </div>
+              <div className="space-y-1">
+                {recentChatMessages.map((m, i) => (
+                  <p key={i} className="truncate text-sm">
+                    <span className="font-medium">{m.authorName} </span>
+                    {m.body}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(isAuthor || isDown) && (
+            <Button
+              variant="outline"
+              className="h-11 w-full rounded-full border-border bg-card hover:bg-primary-soft/70 hover:text-primary"
+              onClick={() => navigate(`/posts/${postId}/chat`)}
+            >
+              💬 Chat with everyone who's down
+            </Button>
           )}
 
           {isAuthor && (

@@ -20,6 +20,7 @@ import Discover from "./pages/Discover";
 import PlaceDetail from "./pages/PlaceDetail";
 import InviteRedirect from "./pages/InviteRedirect";
 import ResetPassword from "./pages/ResetPassword";
+import PostChat from "./pages/PostChat";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="/feed" element={<Feed />} />
               <Route path="/create" element={<CreateStatus />} />
               <Route path="/posts/:postId" element={<PostDetail />} />
+              <Route path="/posts/:postId/chat" element={<PostChat />} />
               <Route path="/friends" element={<Friends />} />
               <Route path="/groups" element={<Groups />} />
               <Route path="/groups/:groupId" element={<GroupDetail />} />
