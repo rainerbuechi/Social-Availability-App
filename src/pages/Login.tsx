@@ -158,7 +158,7 @@ export default function Login() {
     if (!cleanEmail) { toast.error("Please enter your email"); return; }
     setIsLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `https://down-app.ch/reset-password`,
     });
     setIsLoading(false);
     if (error) { toast.error(error.message); return; }

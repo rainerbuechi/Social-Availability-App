@@ -14,12 +14,20 @@ export default function ResetPassword() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Supabase fires PASSWORD_RECOVERY when the user lands via the email link
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") setReady(true);
+    // Check if session already exists from the URL hash
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) setReady(true);
     });
+
+    // Also listen in case the event fires after mount
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+        setReady(true);
+        }
+    });
+
     return () => subscription.unsubscribe();
-  }, []);
+    }, []);
 
   const handleReset = async (e: FormEvent) => {
     e.preventDefault();
