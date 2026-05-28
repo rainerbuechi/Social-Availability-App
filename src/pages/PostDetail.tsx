@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
+  ChevronRight,
   Clock,
   Eye,
   EyeOff,
@@ -34,6 +35,8 @@ import {
   leavePost,
   listGroups,
   listPostParticipants,
+  sendPostChatMessage,
+  listPostChatMessages,
 } from "@/lib/api";
 
 export default function PostDetail() {
@@ -53,6 +56,36 @@ export default function PostDetail() {
   const [showInput, setShowInput] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isJoining, setIsJoining] = useState(false);
+  const [recentChatMessages, setRecentChatMessages] = useState<{ body: string; authorName: string }[]>([]);
+  const chatCardRef = useRef<HTMLDivElement>(null);
+  const [expanding, setExpanding] = useState(false);
+  const [expandStyle, setExpandStyle] = useState<React.CSSProperties>({});
+
+  const handleChatClick = () => {
+    if (!chatCardRef.current) { navigate(`/posts/${postId}/chat`); return; }
+    const rect = chatCardRef.current.getBoundingClientRect();
+    setExpandStyle({
+      position: "fixed",
+      top: rect.top,
+      left: rect.left,
+      width: rect.width,
+      height: rect.height,
+      borderRadius: "12px",
+      backgroundColor: "hsl(var(--card))",
+      zIndex: 50,
+      transition: "all 320ms cubic-bezier(0.4, 0, 0.2, 1)",
+    });
+    setExpanding(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      setExpandStyle(prev => ({
+        ...prev,
+        top: 0, left: 0,
+        width: "100vw", height: "100vh",
+        borderRadius: "0px",
+      }));
+    }));
+    setTimeout(() => navigate(`/posts/${postId}/chat`), 340);
+  };
   const { displayName } = useNicknames();
 
   const refresh = useCallback(async () => {
@@ -91,6 +124,15 @@ export default function PostDetail() {
     );
 
     setParticipants(withUsers);
+    const recentMsgs = await listPostChatMessages(postId);
+    const last3 = recentMsgs.slice(-3);
+    const withNames = await Promise.all(
+      last3.map(async (m) => {
+        const u = await getUser(m.authorId);
+        return { body: m.body, authorName: u?.name ?? "?" };
+      })
+    );
+    setRecentChatMessages(withNames);
     setLoading(false);
   }, [postId]);
 
@@ -105,12 +147,14 @@ export default function PostDetail() {
 
   const handleJoin = async () => {
     if (!postId || isJoining) return;
-
     setIsJoining(true);
-
     try {
       if (showInput) {
-        await joinPost(postId, responseMsg.trim() || undefined);
+        const note = responseMsg.trim();
+        await joinPost(postId, note || undefined);
+        if (note) {
+          try { await sendPostChatMessage(postId, note); } catch (_) {}
+        }
         setShowInput(false);
         setResponseMsg("");
         await refresh();
@@ -437,6 +481,39 @@ export default function PostDetail() {
             </div>
           )}
 
+          {(isAuthor || isDown) && recentChatMessages.length > 0 && (
+            <div
+              ref={chatCardRef}
+              className="cursor-pointer rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-primary-soft/70"
+              onClick={handleChatClick}
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-semibold">Chat</p>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  View all <ChevronRight className="h-3 w-3" />
+                </span>
+              </div>
+              <div className="space-y-1">
+                {recentChatMessages.map((m, i) => (
+                  <p key={i} className="truncate text-sm">
+                    <span className="font-medium">{m.authorName} </span>
+                    {m.body}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(isAuthor || isDown) && (
+            <Button
+              variant="outline"
+              className="h-11 w-full rounded-full border-border bg-card hover:bg-primary-soft/70 hover:text-primary"
+              onClick={() => navigate(`/posts/${postId}/chat`)}
+            >
+              💬 Chat with everyone who's down
+            </Button>
+          )}
+
           {isAuthor && (
             <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
               This is your post.
@@ -444,6 +521,7 @@ export default function PostDetail() {
           )}
         </div>
       </div>
+      {expanding && <div style={expandStyle} />}
     </div>
   );
 }

@@ -1101,6 +1101,63 @@ export async function getRecentMessagesForGroup(
     .map(mapSupabaseChatMessage)
     .reverse();
 }
+
+/* ── Post Chat ───────────────────────────────────── */
+
+type SupabasePostChatMessageRow = {
+  id: string;
+  post_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+};
+
+function mapSupabasePostChatMessage(row: SupabasePostChatMessageRow): ChatMessage {
+  return {
+    id: row.id,
+    groupId: row.post_id, // reusing groupId field as postId
+    authorId: row.author_id,
+    body: row.body,
+    createdAt: row.created_at,
+  };
+}
+
+export async function listPostChatMessages(postId: string): Promise<ChatMessage[]> {
+  const { data, error } = await supabase
+    .from("post_chat_messages")
+    .select("id, post_id, author_id, body, created_at")
+    .eq("post_id", postId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("List post chat messages failed:", error);
+    return [];
+  }
+
+  return ((data ?? []) as SupabasePostChatMessageRow[]).map(mapSupabasePostChatMessage);
+}
+
+export async function sendPostChatMessage(postId: string, body: string): Promise<ChatMessage> {
+  const me = await getCurrentUser();
+  if (!me) throw new Error("You must be logged in to send a message");
+
+  const cleanBody = body.trim();
+  if (!cleanBody) throw new Error("Message cannot be empty");
+
+  const { data, error } = await supabase
+    .from("post_chat_messages")
+    .insert({ post_id: postId, author_id: me.id, body: cleanBody })
+    .select("id, post_id, author_id, body, created_at")
+    .single();
+
+  if (error) {
+    console.error("Send post chat message failed:", error);
+    throw new Error(error.message);
+  }
+
+  return mapSupabasePostChatMessage(data as SupabasePostChatMessageRow);
+}
+
 /* ── Privacy ─────────────────────────────────────── */
 
 const PRIVACY_KEY = "privacy_settings";
