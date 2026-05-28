@@ -92,9 +92,7 @@ export interface WaitingPool {
   date: string;
   startTime?: string;
   endTime?: string;
-  visibleToGroupIds: string[];
-  visibleToUserIds: string[];
-  visibleToAllFriends: boolean;
+  visibleToGroupId: string;
   memberIds: string[];
   chatGroupId?: string;
   minPeople: number;
