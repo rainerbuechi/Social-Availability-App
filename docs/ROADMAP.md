@@ -25,6 +25,7 @@
 - Leave Groups
 - Gamification
 - search function for adding ppl to groups
+- weg finde das meh lüt d app aktiv bruched
 
 
 ## Vorherigs ReadMe:
