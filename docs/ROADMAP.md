@@ -26,6 +26,9 @@
 - Gamification
 - search function for adding ppl to groups
 - weg finde das meh lüt d app aktiv bruched
+- find a way to make discover page available for people outside of switzerland (events shoudl already work)
+- other stuff to be weary of before launching
+- Advertisement 
 
 
 ## Vorherigs ReadMe:
